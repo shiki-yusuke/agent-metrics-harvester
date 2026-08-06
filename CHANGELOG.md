@@ -1,8 +1,89 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+All notable changes to this project are documented in this file. Nothing
+below has been published to a registry or tagged in git yet -- version
+numbers here track the package's own `version` field, not a release.
 
-## [Unreleased]
+## [0.2.0]
+
+### Added
+
+- **`agent-metrics-report` (new binary): `cost-per-pr` command.** A
+  read-only cost-per-merged-PR report over the same JSONL/SQLite store the
+  `agent-metrics-harvester` binary writes -- the harvest CLI, the 4-operation
+  `Store` interface, and the Action wrapper are all unchanged by this
+  addition (see `src/report/snapshot-reader.ts`: a separate, additive,
+  read-only `SnapshotReader` capability, not a 5th `Store` operation).
+  - `src/stores/jsonl/journal.ts` / `src/stores/sqlite/mapping.ts`: the
+    harvest CLI's own journal-replay and row-mapping logic, extracted into
+    pure functions (behavior-preserving refactor -- existing harvest tests
+    pass unmodified) so `JsonlSnapshotReader`/`SqliteSnapshotReader` reuse
+    the exact same "never aggregate an incomplete tail" guarantee rather
+    than maintaining a second copy of it.
+  - `src/report/period.ts`: IANA-timezone month/ISO-week resolution as a
+    half-open `[start, end)` interval, with no date library dependency.
+  - `src/report/team-config.ts`: a versioned, hand-rolled parser for a
+    fixed two-level `version`/`teams[].name`/`teams[].repositories[]`
+    shape (see "Deviations" below -- this is not a general YAML parser).
+  - `src/report/pr-metadata/`: a report-owned sidecar cache of merged-PR
+    metadata (`repository`, `pr_number`, `opened_at`, `merged_at`, `state`,
+    `github_updated_at`, `fetched_at` only), filled by bulk (never
+    per-PR/N+1) GitHub Search queries that bisect any window reporting
+    more than 1000 total results (Search API's hard per-query cap), and
+    fail closed (mark the whole result incomplete) on `incomplete_results`,
+    a safety-valve stop, or an unsplittable oversized window.
+  - `src/report/cost-per-pr.ts`: the core metric. Denominator (unique
+    merged `(repository, pr_number)` count) and numerator (sum of
+    `priced` records' `estimated_cost_usd` whose *own* `generated_at`
+    falls in period) are independent data sources on independent time
+    checks, so a merged PR with no snapshot still counts in the
+    denominator, and a PR-unlinked/open-PR-linked/different-period-merged
+    snapshot's cost still counts in the numerator. Missing data
+    (unpriced/unknown/`priced`-without-cost/partial coverage) is never
+    folded into a clean $0 -- it nulls the exact
+    `estimated_cost_per_merged_pr_usd` and surfaces a lower bound instead,
+    alongside a `status` in `{ok_observed, partial_cost, no_telemetry,
+    metadata_incomplete, insufficient_sample, zero_denominator}` and the
+    full honesty-fields breakdown from spec §5 (coverage counts,
+    linked/unlinked cost split, pricing-status/token breakdown,
+    `quality_status: "not_measured"`, a deterministic `input_fingerprint`,
+    ...).
+  - `src/report/comparison.ts`: a pure A/B combination of two already-
+    computed results -- sign-normalized improvement percentages, a
+    versioned comparison policy, and a hard compatibility guard (same
+    timezone/bucket-kind/repository-set/team-config-hash, else an error,
+    never a misleading number).
+  - `src/report/render/{json,markdown}.ts`: both read the same domain
+    result, so the two formats can never disagree; Markdown always shows
+    sample size, coverage, and the metadata as-of timestamp, and a
+    rendered comparison always ends with the two fixed disclaimer
+    sentences verbatim (never a "quality maintained" claim -- quality is
+    simply not measured in v1).
+  - `src/cli/report-args.ts` / `report-command.ts` / `report-main.ts`: the
+    `agent-metrics-report cost-per-pr` CLI itself.
+  - `src/cli/path-safety.ts`: the harvest CLI's `--store-path` `..`-segment
+    guard, extracted into a shared module so `--store-path` and
+    `--metadata-cache` in both binaries enforce the same rule (pure
+    refactor of the harvest CLI's own args.ts; its error type/messages at
+    the call site, and its existing tests, are unchanged).
+
+  Deviations from the literal spec text (reported to team-lead):
+  - The spec calls the team-config file "yaml", but this project's
+    dependency policy allows no runtime dependency beyond `better-sqlite3`.
+    `team-config.ts` implements only the fixed shape a team config actually
+    needs, not general YAML, and rejects anything else outright rather than
+    silently redefining the format as JSON.
+  - `--team-config` supports more than one team per file (spec §6's "1 repo
+    の複数 team 所属は拒否" implies a shared, multi-team file); a `--team
+    <name>` flag (not in the spec's literal §1 CLI listing) selects one when
+    a config defines more than one, auto-selecting when there is exactly
+    one.
+  - `--month`/`--week` name the period being *evaluated* ("period B" in
+    comparison terms); `--compare-month`/`--compare-week` name the earlier
+    *baseline* ("period A") -- i.e. "how did July do, compared to June."
+    The spec's §1 CLI sketch does not state this ordering explicitly.
+
+## [0.1.0]
 
 ### Added
 

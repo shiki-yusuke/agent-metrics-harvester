@@ -4,10 +4,13 @@ A reference harvester for the [`agent-metrics/v1`](https://github.com/shiki-yusu
 protocol: it collects AI-coding-agent token/cost telemetry that a pipeline
 already posts as a hidden marker on a GitHub PR/issue comment, and turns it
 into a queryable JSONL or SQLite store — without ever requiring a
-developer-held credential.
+developer-held credential. A second, read-only binary, `agent-metrics-report`
+(see [below](#agent-metrics-report-cost-per-merged-pr)), reports estimated
+cost per merged PR over that same store.
 
 This repository implements exactly one thing: the harvester side of the
-protocol. The marker format, the upsert-key recipe, the trust model, and the
+protocol, plus a reference report built on top of it. The marker format, the
+upsert-key recipe, the trust model, and the
 conformance fixtures it is tested against all live in
 [`ai-agent-skills-playbook`](https://github.com/shiki-yusuke/ai-agent-skills-playbook)'s
 [`docs/protocols/agent-metrics-v1.md`](https://github.com/shiki-yusuke/ai-agent-skills-playbook/blob/main/docs/protocols/agent-metrics-v1.md)
@@ -44,9 +47,10 @@ npm install
 npm run build
 ```
 
-This produces `dist/src/cli/main.js`, runnable directly with Node, plus a
-`bin` entry (`agent-metrics-harvester`) if you install this package globally
-or via `npx`.
+This produces `dist/src/cli/main.js` and `dist/src/cli/report-main.js`,
+runnable directly with Node, plus two `bin` entries
+(`agent-metrics-harvester`, `agent-metrics-report`) if you install this
+package globally or via `npx`.
 
 ## CLI usage
 
@@ -234,18 +238,25 @@ src/
                   bounded 403/429 backoff) and the CommentSource adapter.
   stores/jsonl/   append-only JSONL journal; commitBatch = snapshot+cursor
                   lines followed by one checkpoint line, replayed on load
-                  with any incomplete trailing batch discarded.
+                  with any incomplete trailing batch discarded. journal.ts's
+                  replay is also reused, read-only, by the report tool below.
   stores/sqlite/  the same Store interface via better-sqlite3; commitBatch =
                   one transaction (checkpoint CAS check + upserts + cursor
                   advance), rolled back atomically on any failure.
-  cli/            argument parsing and wiring -- no protocol/store logic of
-                  its own.
+  report/         agent-metrics-report's own domain logic (period
+                  resolution, team-config, PR-metadata cache, the
+                  cost-per-pr metric, A/B comparison, renderers) -- see
+                  "agent-metrics-report" below. Reads via SnapshotReader,
+                  never touches Store or the harvest CLI's contract.
+  cli/            argument parsing and wiring for both binaries -- no
+                  protocol/store/report logic of its own.
 action/           GitHub Action wrapper: checkout/state-restore -> CLI ->
                   commit, and nothing else.
 test/contract/    conformance against the vendored agent-metrics/v1 fixtures.
 test/unit/        crash injection (both stores), store parity (JSONL vs
-                  SQLite under an identical operation sequence), and the
-                  harvest orchestration's own accept/reject/skip paths.
+                  SQLite under an identical operation sequence), the
+                  harvest orchestration's own accept/reject/skip paths, and
+                  the report tool's own unit/integration coverage.
 test/e2e/         offline end-to-end: a fake, network-free GitHub source
                   serving real vendored fixture markers through the real
                   orchestration into both real store backends.
@@ -266,6 +277,130 @@ corresponding snapshots (and vice versa) having actually landed. See
 `test/unit/*-crash-injection.test.ts` for the property this guarantees and
 how each backend proves it.
 
+## agent-metrics-report: cost per merged PR
+
+A second, read-only binary in this same package: `agent-metrics-report
+cost-per-pr` reads the same JSONL/SQLite store `agent-metrics-harvester`
+writes and reports **estimated AI-assisted-coding cost per merged PR** for a
+calendar month or ISO week. It never writes to that store, never changes the
+harvest CLI's contract, and never introduces a fifth `Store` operation — it
+reads through a separate, additive `SnapshotReader` (one method:
+`listCurrentSnapshots`).
+
+```bash
+node dist/src/cli/report-main.js cost-per-pr \
+  --store-path ./data/agent-metrics-store.jsonl \
+  --repo octo-org/example-repo \
+  --month 2026-07 \
+  --compare-month 2026-06 \
+  --timezone Asia/Tokyo \
+  --metadata-cache ./data/pr-metadata-cache.json \
+  --format markdown
+```
+
+### Metric definition
+
+```
+merged_pr_count            = unique (repository, pr_number) merged in [start, end)
+                              for the explicitly given repository set -- including
+                              merged PRs that have no cost snapshot at all.
+known_estimated_cost_usd   = sum of priced records' estimated_cost_usd, from every
+                              *current* snapshot whose OWN generated_at falls in
+                              [start, end) -- regardless of whether that snapshot is
+                              linked to a PR, linked to a PR that's still open, or
+                              linked to a PR that merged in a different period.
+```
+
+The denominator and numerator are deliberately independent: they come from
+different data sources (a PR-metadata cache vs. the harvest store) and are
+checked against the period on different timestamps (`merged_at` vs. the
+snapshot's own `generated_at`). A merged PR with zero snapshots still counts
+in the denominator; an unlinked or still-open-PR-linked snapshot still counts
+in the numerator.
+
+If there is any data-quality gap in scope — an `unpriced`/`unknown` record, a
+`priced` record missing its cost figure, or `partial`/`no_data` coverage —
+`estimated_cost_per_merged_pr_usd` is `null` and
+`estimated_cost_per_merged_pr_lower_bound_usd` is reported instead (the known
+cost can only be an undercount, never an overcount, so it's always a valid
+lower bound). Nothing missing is ever silently treated as `$0`.
+
+`--repo` (repeatable) or `--team-config <file>` selects the repository set —
+never inferred from what happens to be in the store. `--team-config`'s file
+format is a **fixed, hand-rolled shape**, not general YAML (this project
+takes no runtime dependency beyond `better-sqlite3`, so there's no YAML
+library to parse arbitrary YAML with):
+
+```yaml
+version: 1
+teams:
+  - name: platform
+    repositories:
+      - octo-org/repo-a
+      - octo-org/repo-b
+  - name: growth
+    repositories:
+      - octo-org/repo-c
+```
+
+A repository may belong to at most one team in the file. `--team <name>`
+selects which team's repositories to use when a config defines more than
+one; it's optional when the file defines exactly one.
+
+### Honesty fields (always present in the JSON output)
+
+Every report carries a `status` — one of `ok_observed`, `partial_cost`,
+`no_telemetry`, `metadata_incomplete`, `insufficient_sample`,
+`zero_denominator` — plus a full breakdown under `honesty`: snapshot
+counts by coverage status, linked-vs-unlinked snapshot/cost split,
+record counts and token totals by pricing status, a
+`priced_missing_cost_count`, omission counts by reason, PR-metadata
+cache completeness/as-of/API-request-count, and a deterministic
+`input_fingerprint` (a hash of exactly which snapshots — by upsert_key and
+their marker's verified sha256 — and cache version fed the result, so the
+same inputs always reproduce the same fingerprint and the same numbers).
+`quality_status` is always the literal `"not_measured"` — this report never
+claims anything about code quality, in either direction.
+
+There is no per-PR or per-person breakdown anywhere in the output — group-by
+is restricted to `{repository, team, period}` by construction (there is no
+generic `--group-by` flag, and no `--author`/`--reviewer` filter exists to
+even try).
+
+### A/B comparison and its correlation caveat
+
+`--compare-month`/`--compare-week` compares the primary period (`--month`/
+`--week` — the period being *evaluated*) against an earlier baseline. Each
+metric's improvement percentage is sign-normalized so a positive number
+always means "actually got better," and nulls independently (with a reason:
+`value_unavailable`, `insufficient_sample`, or `baseline_zero`) rather than
+ever dividing by zero or reporting a number from too small a sample. The two
+periods must share the same timezone, bucket kind, repository set, and
+team-config hash, or the command errors outright rather than showing a
+misleading comparison.
+
+A rendered Markdown comparison always ends with two fixed sentences (never
+paraphrased, never omitted):
+
+> これは記述的な期間比較であり、AI利用による因果効果を示すものではない。品質は本レポートでは未測定。
+
+("This is a descriptive period comparison, not evidence of a causal effect
+from AI usage. Quality is not measured by this report.")
+
+### Cost-control safety valves
+
+The same philosophy as the harvester's own (`--max-api-requests`,
+`--rate-limit-floor`, `--max-runtime-seconds`), applied to the PR-metadata
+fetch: GitHub Search API queries are bulk (never one request per PR), a
+window reporting more than 1000 total results is bisected rather than
+falling back to per-PR fetching, and any incompleteness — `incomplete_
+results`, a safety-valve stop, or an unsplittable oversized window — marks
+that metadata (and therefore the headline `merged_pr_count`) as
+`metadata_incomplete` rather than reporting a number that might be wrong.
+`--metadata-mode cache-only` never touches the network at all; a fully-
+covered *past* period (never a still-open current one) is served from cache
+without any request even in `auto` mode.
+
 ## v1 scope
 
 Not in this repository (see [`CHANGELOG.md`](CHANGELOG.md) for what's
@@ -274,6 +409,13 @@ aggregation/re-pricing, or a Claude/Codex/launchd-specific scheduler. The
 core CLI is deliberately scheduler-agnostic — it takes flags and runs once —
 so that a future always-on runner can drive it without a rewrite.
 
+Also not in the report tool specifically: re-pricing, JPY/FX conversion,
+seat cost or actual billing, manual budget input, review-result
+cross-referencing, any "quality maintained" auto-text, business/BI metrics,
+causal inference or significance testing, per-PR or per-individual
+breakdowns, an arbitrary `--group-by`/model drill-down, business-day lead
+time, or cost accrual-period allocation.
+
 ## Development
 
 ```bash
@@ -281,9 +423,9 @@ npm install
 npm run build       # tsc + copy test fixture assets into dist/
 npm run typecheck
 npm run lint         # biome check .
-npm test             # contract + unit + e2e
+npm test             # contract + unit + e2e (both binaries)
 npm run test:contract
-npm run test:unit
+npm run test:unit    # includes report/* unit + offline integration tests
 npm run test:e2e
 ```
 
