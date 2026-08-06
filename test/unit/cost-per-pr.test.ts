@@ -59,7 +59,12 @@ function mergedPr(prNumber: number, openedAt: string, mergedAt: string): PrMetad
 
 const FINGERPRINT = computeInputFingerprint({
   snapshots: [],
+  periodStartUtc: "2026-01-01T00:00:00Z",
+  periodEndUtc: "2026-02-01T00:00:00Z",
+  repositories: [REPO],
+  mergedPrs: [],
   cacheVersion: "pr-metadata-cache/v1",
+  minSampleSize: 5,
 });
 
 describe("computeCostPerPr: denominator independence", () => {
@@ -334,6 +339,36 @@ describe("computeCostPerPr: status/null gating", () => {
     assert.equal(result.status, "insufficient_sample");
   });
 
+  it("must-2 regression: insufficient_sample also nulls the lead-time headline, not just cost-per-pr", async () => {
+    // n=1 merged PR, well below the default minSampleSize=5 -- opened_at/merged_at ARE known
+    // (metadata is complete), so without this fix a median/p90 from a single PR would still be
+    // reported despite the sample being far too thin to mean anything.
+    const result = await computeCostPerPr({
+      period: PERIOD,
+      repositories: [REPO],
+      snapshotReader: fakeReader([]),
+      mergedPrRecordsByRepository: new Map([
+        [REPO, [mergedPr(1, "2026-07-01T00:00:00Z", "2026-07-01T20:00:00Z")]], // 20h lead time
+      ]),
+      metadataComplete: true,
+      metadataAsOf: "2026-08-01T00:00:00Z",
+      metadataApiRequestsUsed: 1,
+      inputFingerprint: FINGERPRINT,
+      minSampleSize: 5,
+    });
+    assert.equal(result.status, "insufficient_sample");
+    assert.equal(
+      result.leadTime,
+      null,
+      "lead time must be null, not a median/p90 computed from too few PRs",
+    );
+    assert.equal(
+      result.mergedPrCount,
+      1,
+      "the merged PR count itself is still reported (only the headline metrics derived FROM it are nulled)",
+    );
+  });
+
   it("no_telemetry when metadata is complete with enough merged PRs but zero snapshots", async () => {
     const result = await computeCostPerPr({
       period: PERIOD,
@@ -353,6 +388,10 @@ describe("computeCostPerPr: status/null gating", () => {
       inputFingerprint: FINGERPRINT,
     });
     assert.equal(result.status, "no_telemetry");
+    assert.ok(
+      result.leadTime !== null,
+      "lead time depends only on PR metadata, not snapshot telemetry -- must stay populated here",
+    );
   });
 
   it("ok_observed when everything is clean and above the sample threshold", async () => {

@@ -16,6 +16,11 @@ import { type Period, isWithinPeriod } from "./period.js";
 import type { PrMetadataRecord } from "./pr-metadata/types.js";
 import type { SnapshotReader } from "./snapshot-reader.js";
 
+/** The default applied when `minSampleSize` is not given -- exported so callers computing the
+ * input_fingerprint (report-command.ts) can hash the *actual* value used, not just whatever
+ * they happened to pass through, without duplicating this number. */
+export const DEFAULT_MIN_SAMPLE_SIZE = 5;
+
 export type CostPerPrStatus =
   | "ok_observed"
   | "partial_cost"
@@ -117,7 +122,7 @@ function nearestRankP90(sortedAscending: readonly number[]): number {
 }
 
 export async function computeCostPerPr(input: ComputeCostPerPrInput): Promise<CostPerPrResult> {
-  const minSampleSize = input.minSampleSize ?? 5;
+  const minSampleSize = input.minSampleSize ?? DEFAULT_MIN_SAMPLE_SIZE;
 
   const allMergedPrs: PrMetadataRecord[] = [];
   for (const repo of input.repositories) {
@@ -225,8 +230,13 @@ export async function computeCostPerPr(input: ComputeCostPerPrInput): Promise<Co
   const estimatedCostPerMergedPrUsd =
     status === "ok_observed" ? estimatedCostPerMergedPrLowerBoundUsd : null;
 
+  // insufficient_sample nulls the lead-time headline too, the same way it nulls
+  // estimatedCostPerMergedPrUsd -- an n below the minimum sample size is too thin to report a
+  // median/p90 from, regardless of which metric it's attached to (sol's ruling: "n < 最小標本
+  // 数では headline を null"). partial_cost/no_telemetry/ok_observed leave lead time alone,
+  // since it depends only on PR metadata (opened_at/merged_at), never on snapshot data quality.
   let leadTime: LeadTimeSummary | null = null;
-  if (input.metadataComplete && allMergedPrs.length > 0) {
+  if (input.metadataComplete && allMergedPrs.length > 0 && status !== "insufficient_sample") {
     const hours = allMergedPrs
       .map((pr) => (Date.parse(pr.mergedAt) - Date.parse(pr.openedAt)) / 3_600_000)
       .sort((a, b) => a - b);

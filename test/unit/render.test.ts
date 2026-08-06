@@ -19,7 +19,12 @@ import { makeTokenUsagePayload } from "../support/fixtures.js";
 const REPO = "octo/example";
 const FINGERPRINT = computeInputFingerprint({
   snapshots: [],
+  periodStartUtc: "2026-01-01T00:00:00Z",
+  periodEndUtc: "2026-02-01T00:00:00Z",
+  repositories: [REPO],
+  mergedPrs: [],
   cacheVersion: "pr-metadata-cache/v1",
+  minSampleSize: 5,
 });
 
 function reader(snapshots: readonly StoredSnapshot[]): SnapshotReader {
@@ -95,6 +100,23 @@ describe("renderJsonReport / renderMarkdownReport: single period", () => {
       "this scenario is expected to have a displayable cost figure",
     );
     assert.ok(markdown.includes((displayedCost as number).toFixed(2)));
+  });
+
+  it("must-2 regression: both renderers show lead time as unavailable (not a median/p90) when status is insufficient_sample", async () => {
+    const result = await build("2026-07", 2, true); // 2 merged PRs, below the default minSampleSize=5
+    assert.equal(result.status, "insufficient_sample");
+    assert.equal(result.leadTime, null);
+
+    const json = renderJsonReport(result) as { lead_time: unknown; merged_pr_count: number };
+    assert.equal(json.lead_time, null);
+    assert.equal(json.merged_pr_count, 2, "merged_pr_count itself is still reported");
+
+    const markdown = renderMarkdownReport(result);
+    assert.ok(markdown.includes("PR lead time: n/a"));
+    assert.ok(
+      !/median \d/.test(markdown),
+      "must not render a median/p90 computed from too few PRs",
+    );
   });
 
   it("Markdown always shows n, a coverage summary, and the metadata as-of timestamp", async () => {
