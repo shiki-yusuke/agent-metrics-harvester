@@ -131,8 +131,7 @@ export interface HarvestRepositoryResult {
 export class InitialRunRequiresBoundsError extends Error {
   constructor(public readonly repository: string) {
     super(
-      `${repository}: no checkpoint exists and neither --initial-since nor --lookback-days was given; ` +
-        "a first run must not silently full-scan a repository's entire comment history.",
+      `${repository}: no checkpoint exists and neither --initial-since nor --lookback-days was given; a first run must not silently full-scan a repository's entire comment history.`,
     );
     this.name = "InitialRunRequiresBoundsError";
   }

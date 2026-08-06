@@ -4,7 +4,12 @@
 // already fetched with `budgetStopped: true`, rather than either blocking forever or silently
 // discarding the safety valve's decision.
 
-import type { CommentSource, FetchCommentsParams, FetchCommentsResult, RawComment } from "../../application/types.js";
+import type {
+  CommentSource,
+  FetchCommentsParams,
+  FetchCommentsResult,
+  RawComment,
+} from "../../application/types.js";
 import type { GithubClient } from "./client.js";
 
 export interface GithubCommentSourceOptions {

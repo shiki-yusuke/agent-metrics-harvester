@@ -29,12 +29,20 @@ export function parseMarker(commentBody: string): ParsedMarker {
 
 export type EnvelopeDecodeResult =
   | { readonly ok: true; readonly bytes: Buffer }
-  | { readonly ok: false; readonly code: "envelope_fields_missing" | "envelope_base64_decode_failed" | "envelope_hash_mismatch" };
+  | {
+      readonly ok: false;
+      readonly code:
+        | "envelope_fields_missing"
+        | "envelope_base64_decode_failed"
+        | "envelope_hash_mismatch";
+    };
 
 /** Decodes and hash-verifies the marker's payload_b64/sha256 fields. Never trusts the
  * declared sha256 as a signature -- it is a checksum recomputed here over the decoded byte
  * sequence, before any JSON parsing is attempted (protocol doc section 2). */
-export function decodeEnvelopeFields(fields: Readonly<Record<string, string>>): EnvelopeDecodeResult {
+export function decodeEnvelopeFields(
+  fields: Readonly<Record<string, string>>,
+): EnvelopeDecodeResult {
   const payloadB64 = fields.payload_b64;
   const declaredSha = fields.sha256;
   if (!payloadB64 || !declaredSha) {

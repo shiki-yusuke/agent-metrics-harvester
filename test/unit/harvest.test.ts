@@ -3,9 +3,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { harvestRepository, InitialRunRequiresBoundsError } from "../../src/application/index.js";
+import { InitialRunRequiresBoundsError, harvestRepository } from "../../src/application/index.js";
 import { SafetyValve } from "../../src/application/safety-valve.js";
-import type { CommentSource, FetchCommentsParams, FetchCommentsResult, RawComment } from "../../src/application/types.js";
+import type {
+  CommentSource,
+  FetchCommentsParams,
+  FetchCommentsResult,
+  RawComment,
+} from "../../src/application/types.js";
 import { JsonlStore } from "../../src/stores/jsonl/jsonl-store.js";
 import { makeComment, makeTokenUsagePayload, markerTextFor } from "../support/fixtures.js";
 
@@ -16,13 +21,18 @@ class FixedCommentSource implements CommentSource {
   ) {}
   private callIndex = 0;
   async fetchComments(_params: FetchCommentsParams): Promise<FetchCommentsResult> {
-    const result = this.pages[Math.min(this.callIndex, this.pages.length - 1)] as FetchCommentsResult;
+    const result = this.pages[
+      Math.min(this.callIndex, this.pages.length - 1)
+    ] as FetchCommentsResult;
     this.callIndex++;
     return result;
   }
 }
 
-function page(comments: readonly RawComment[], extra: Partial<FetchCommentsResult> = {}): FetchCommentsResult {
+function page(
+  comments: readonly RawComment[],
+  extra: Partial<FetchCommentsResult> = {},
+): FetchCommentsResult {
   return { comments, notModified: false, requestsUsed: 1, ...extra };
 }
 
@@ -49,7 +59,10 @@ describe("harvestRepository", () => {
     const store = await JsonlStore.open(path.join(dir, "mixed.jsonl"));
 
     const goodPayload = makeTokenUsagePayload({ repository: "octo/example", subjectId: "good" });
-    const wrongRepoPayload = makeTokenUsagePayload({ repository: "octo/other", subjectId: "wrong-repo" });
+    const wrongRepoPayload = makeTokenUsagePayload({
+      repository: "octo/other",
+      subjectId: "wrong-repo",
+    });
 
     const comments: RawComment[] = [
       makeComment({ id: 1, updatedAt: "2026-01-01T00:00:00Z", body: "no marker here at all" }),
@@ -96,27 +109,42 @@ describe("harvestRepository", () => {
   it("skips a comment whose (repository, commentId, verified sha) was already committed", async () => {
     const store = await JsonlStore.open(path.join(dir, "skip-seen.jsonl"));
     const payload = makeTokenUsagePayload({ repository: "octo/example", subjectId: "seen-test" });
-    const comment = makeComment({ id: 1, updatedAt: "2026-01-01T00:00:00Z", body: markerTextFor(payload) });
+    const comment = makeComment({
+      id: 1,
+      updatedAt: "2026-01-01T00:00:00Z",
+      body: markerTextFor(payload),
+    });
 
     const auth = { allowedLogins: ["trusted-bot[bot]"] };
     const source1 = new FixedCommentSource("octo/example", [page([comment])]);
     const valve1 = new SafetyValve({});
-    const first = await harvestRepository({ source: source1, store, safetyValve: valve1 }, { lookbackDays: 1, auth });
+    const first = await harvestRepository(
+      { source: source1, store, safetyValve: valve1 },
+      { lookbackDays: 1, auth },
+    );
     assert.equal(first.accepted, 1);
 
     // Second run re-fetches the same comment (as an overlap window would) unchanged.
     const source2 = new FixedCommentSource("octo/example", [page([comment])]);
     const valve2 = new SafetyValve({});
-    const second = await harvestRepository({ source: source2, store, safetyValve: valve2 }, { lookbackDays: 1, auth });
+    const second = await harvestRepository(
+      { source: source2, store, safetyValve: valve2 },
+      { lookbackDays: 1, auth },
+    );
     assert.equal(second.accepted, 0);
     assert.equal(second.skippedSeen, 1);
   });
 
   it("short-circuits on a 304 Not Modified response without touching the store", async () => {
     const store = await JsonlStore.open(path.join(dir, "not-modified.jsonl"));
-    const source = new FixedCommentSource("octo/example", [{ comments: [], notModified: true, requestsUsed: 1 }]);
+    const source = new FixedCommentSource("octo/example", [
+      { comments: [], notModified: true, requestsUsed: 1 },
+    ]);
     const valve = new SafetyValve({});
-    const result = await harvestRepository({ source, store, safetyValve: valve }, { lookbackDays: 1, auth: {} });
+    const result = await harvestRepository(
+      { source, store, safetyValve: valve },
+      { lookbackDays: 1, auth: {} },
+    );
     assert.equal(result.notModified, true);
     assert.equal(await store.readCheckpoint("octo/example"), null);
   });
@@ -126,7 +154,10 @@ describe("harvestRepository", () => {
     const source = new FixedCommentSource("octo/example", [page([])]);
     const valve = new SafetyValve({ maxApiRequests: 1 });
     valve.recordRequests(1);
-    const result = await harvestRepository({ source, store, safetyValve: valve }, { lookbackDays: 1, auth: {} });
+    const result = await harvestRepository(
+      { source, store, safetyValve: valve },
+      { lookbackDays: 1, auth: {} },
+    );
     assert.equal(result.stoppedReason, "max_api_requests_exceeded");
     assert.equal(result.requestsUsed, 0);
   });

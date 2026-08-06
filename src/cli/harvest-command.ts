@@ -3,7 +3,7 @@
 // runs harvestAll. Kept separate from main.ts so it stays testable without going through argv
 // parsing or process.exit.
 
-import { harvestAll, type HarvestAllResult } from "../application/harvest.js";
+import { type HarvestAllResult, harvestAll } from "../application/harvest.js";
 import { SafetyValve } from "../application/safety-valve.js";
 import type { CommentSource, HarvestRepositoryOptions, Store } from "../application/types.js";
 import { GithubClient } from "../sources/github/client.js";

@@ -10,8 +10,8 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { harvestRepository } from "../../src/application/harvest.js";
 import { SafetyValve } from "../../src/application/safety-valve.js";
 import type { RawComment } from "../../src/application/types.js";
@@ -131,17 +131,33 @@ describe("offline E2E: fake GitHub source serving real fixture markers", () => {
     const sqliteStore = await SqliteStore.open(path.join(dir, "e2e.sqlite"));
 
     const jsonlResult = await harvestRepository(
-      { source: new FakeGithubCommentSource(REPOSITORY, comments), store: jsonlStore, safetyValve: new SafetyValve({}) },
+      {
+        source: new FakeGithubCommentSource(REPOSITORY, comments),
+        store: jsonlStore,
+        safetyValve: new SafetyValve({}),
+      },
       { lookbackDays: 3650, auth: AUTH },
     );
     const sqliteResult = await harvestRepository(
-      { source: new FakeGithubCommentSource(REPOSITORY, comments), store: sqliteStore, safetyValve: new SafetyValve({}) },
+      {
+        source: new FakeGithubCommentSource(REPOSITORY, comments),
+        store: sqliteStore,
+        safetyValve: new SafetyValve({}),
+      },
       { lookbackDays: 3650, auth: AUTH },
     );
 
     assert.deepEqual(
-      { accepted: jsonlResult.accepted, rejected: jsonlResult.rejected, ignored: jsonlResult.ignored },
-      { accepted: sqliteResult.accepted, rejected: sqliteResult.rejected, ignored: sqliteResult.ignored },
+      {
+        accepted: jsonlResult.accepted,
+        rejected: jsonlResult.rejected,
+        ignored: jsonlResult.ignored,
+      },
+      {
+        accepted: sqliteResult.accepted,
+        rejected: sqliteResult.rejected,
+        ignored: sqliteResult.ignored,
+      },
     );
     // 2 clean accepts (valid-minimum, valid-multi-record) + 2 accepts from the correction pair
     // (the second upserts over the first's upsert_key, but both individually pass the
@@ -158,7 +174,11 @@ describe("offline E2E: fake GitHub source serving real fixture markers", () => {
       data: { records: unknown[] };
     };
 
-    for (const upsertKey of [minimumPayload.upsert_key, multiRecordPayload.upsert_key, correctionPayload2.upsert_key]) {
+    for (const upsertKey of [
+      minimumPayload.upsert_key,
+      multiRecordPayload.upsert_key,
+      correctionPayload2.upsert_key,
+    ]) {
       const fromJsonl = await jsonlStore.readSnapshot(upsertKey);
       const fromSqlite = await sqliteStore.readSnapshot(upsertKey);
       assert.ok(fromJsonl, `expected a stored snapshot for ${upsertKey} in JSONL`);

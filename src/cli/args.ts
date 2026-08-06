@@ -53,7 +53,8 @@ export function parseArgs(argv: readonly string[]): CliOptions {
       case "--store":
         {
           const v = requireValue(argv, i, flag);
-          if (v !== "jsonl" && v !== "sqlite") throw new CliArgError(`--store must be "jsonl" or "sqlite", got "${v}"`);
+          if (v !== "jsonl" && v !== "sqlite")
+            throw new CliArgError(`--store must be "jsonl" or "sqlite", got "${v}"`);
           storeKind = v;
         }
         i++;

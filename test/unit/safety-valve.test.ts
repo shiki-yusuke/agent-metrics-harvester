@@ -41,7 +41,10 @@ describe("boundedBackoffDelayMs", () => {
   it("grows exponentially and is capped by maxDelayMs", () => {
     assert.equal(boundedBackoffDelayMs(0, { baseDelayMs: 100, maxDelayMs: 10_000 }), 100);
     assert.equal(boundedBackoffDelayMs(1, { baseDelayMs: 100, maxDelayMs: 10_000 }), 200);
-    assert.equal(boundedBackoffDelayMs(10, { baseDelayMs: 100, maxDelayMs: 10_000, maxAttempts: 20 }), 10_000);
+    assert.equal(
+      boundedBackoffDelayMs(10, { baseDelayMs: 100, maxDelayMs: 10_000, maxAttempts: 20 }),
+      10_000,
+    );
   });
 
   it("returns null once maxAttempts is exceeded, signalling give-up", () => {

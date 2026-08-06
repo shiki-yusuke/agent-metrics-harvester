@@ -57,7 +57,11 @@ function normalizeRecord(r: TokenUsageRecord): TokenUsageRecord {
 }
 
 function normalizeOmission(o: CoverageOmission): CoverageOmission {
-  return { entry_id: o.entry_id, reason: o.reason, ...(o.detail !== undefined ? { detail: o.detail } : {}) };
+  return {
+    entry_id: o.entry_id,
+    reason: o.reason,
+    ...(o.detail !== undefined ? { detail: o.detail } : {}),
+  };
 }
 
 function normalizeCoverage(c: Coverage): Coverage {

@@ -2,8 +2,8 @@
 // picks it up directly). Builds well-formed token-usage/v1 payloads and marker text on the fly
 // so unit/e2e tests aren't stuck re-deriving upsert_key/sha256 arithmetic by hand.
 
-import { computeUpsertKey, sha256Hex } from "../../src/protocol/canonical.js";
 import type { RawComment } from "../../src/application/types.js";
+import { computeUpsertKey, sha256Hex } from "../../src/protocol/canonical.js";
 import type { TokenUsagePayload } from "../../src/protocol/types.js";
 
 export interface MakePayloadOptions {
@@ -16,7 +16,11 @@ export interface MakePayloadOptions {
 
 export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsagePayload {
   const repository = { provider: "github", id: opts.repository ?? "octo/example" };
-  const subject = { namespace: "test-emitter", type: "delivery-run", id: opts.subjectId ?? "run-1" };
+  const subject = {
+    namespace: "test-emitter",
+    type: "delivery-run",
+    id: opts.subjectId ?? "run-1",
+  };
   const upsertKey = computeUpsertKey({ schema: "token-usage/v1", repository, subject });
 
   return {
@@ -27,7 +31,14 @@ export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsage
     subject,
     repository,
     ...(opts.changeNumber !== undefined
-      ? { change: { type: "pull_request", number: opts.changeNumber, url: "https://example.invalid/pr", head_sha: "abc123" } }
+      ? {
+          change: {
+            type: "pull_request",
+            number: opts.changeNumber,
+            url: "https://example.invalid/pr",
+            head_sha: "abc123",
+          },
+        }
       : {}),
     generated_at: opts.generatedAt ?? "2026-08-01T00:00:00Z",
     data: {
@@ -42,7 +53,12 @@ export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsage
           pricing_status: "priced",
         },
       ],
-      coverage: { status: "complete", eligible_entries: 1, measured_entries: 1, excluded_entries: 0 },
+      coverage: {
+        status: "complete",
+        eligible_entries: 1,
+        measured_entries: 1,
+        excluded_entries: 0,
+      },
     },
   };
 }

@@ -9,7 +9,11 @@ export interface GithubClientOptions {
   readonly token?: string;
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
-  readonly backoff?: { readonly maxAttempts?: number; readonly baseDelayMs?: number; readonly maxDelayMs?: number };
+  readonly backoff?: {
+    readonly maxAttempts?: number;
+    readonly baseDelayMs?: number;
+    readonly maxDelayMs?: number;
+  };
 }
 
 export interface GithubApiComment {
@@ -45,7 +49,9 @@ function toRawComment(c: GithubApiComment): RawComment {
     issueNumber: issueNumberFromIssueUrl(c.issue_url),
     authorLogin: c.user?.login ?? "",
     authorType: c.user?.type ?? "User",
-    ...(c.performed_via_github_app?.slug ? { performedViaAppSlug: c.performed_via_github_app.slug } : {}),
+    ...(c.performed_via_github_app?.slug
+      ? { performedViaAppSlug: c.performed_via_github_app.slug }
+      : {}),
   };
 }
 
@@ -89,7 +95,9 @@ export class GithubClient {
       if (res.status === 403 || res.status === 429) {
         const delay = boundedBackoffDelayMs(attempt, this.backoff);
         if (delay === null) {
-          throw new Error(`GitHub API rate-limited (status ${res.status}) at ${url}, backoff attempts exhausted`);
+          throw new Error(
+            `GitHub API rate-limited (status ${res.status}) at ${url}, backoff attempts exhausted`,
+          );
         }
         await sleep(delay);
         attempt++;
@@ -102,10 +110,18 @@ export class GithubClient {
   async listIssueCommentsPage(url: string, etag?: string): Promise<ListCommentsPageResult> {
     const res = await this.getWithBackoff(url, etag);
     const rateLimitRemainingHeader = res.headers.get("x-ratelimit-remaining");
-    const rateLimitRemaining = rateLimitRemainingHeader ? Number.parseInt(rateLimitRemainingHeader, 10) : undefined;
+    const rateLimitRemaining = rateLimitRemainingHeader
+      ? Number.parseInt(rateLimitRemainingHeader, 10)
+      : undefined;
 
     if (res.status === 304) {
-      return { comments: [], nextUrl: null, notModified: true, requestsUsed: 1, rateLimitRemaining };
+      return {
+        comments: [],
+        nextUrl: null,
+        notModified: true,
+        requestsUsed: 1,
+        rateLimitRemaining,
+      };
     }
     if (!res.ok) {
       throw new Error(`GitHub API error ${res.status} at ${url}: ${await res.text()}`);

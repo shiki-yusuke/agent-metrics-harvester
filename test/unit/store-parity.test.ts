@@ -49,7 +49,7 @@ function buildBatches(): CommitBatchInput[] {
     {
       source: SOURCE,
       expectedCheckpoint: { updatedAt: "2026-01-01T00:00:00Z", commentId: 1 },
-      nextCheckpoint: { updatedAt: "2026-01-02T00:00:00Z", commentId: 2, etag: "W/\"etag-2\"" },
+      nextCheckpoint: { updatedAt: "2026-01-02T00:00:00Z", commentId: 2, etag: 'W/"etag-2"' },
       snapshots: [
         {
           upsertKey: payloadB.upsert_key,
@@ -99,7 +99,11 @@ describe("JSONL / SQLite store parity", () => {
     const jsonlCheckpoint = await jsonlStore.readCheckpoint(SOURCE);
     const sqliteCheckpoint = await sqliteStore.readCheckpoint(SOURCE);
     assert.deepEqual(jsonlCheckpoint, sqliteCheckpoint);
-    assert.deepEqual(jsonlCheckpoint, { updatedAt: "2026-01-02T00:00:00Z", commentId: 2, etag: 'W/"etag-2"' });
+    assert.deepEqual(jsonlCheckpoint, {
+      updatedAt: "2026-01-02T00:00:00Z",
+      commentId: 2,
+      etag: 'W/"etag-2"',
+    });
 
     const allUpsertKeys = new Set<string>();
     for (const batch of batches) for (const s of batch.snapshots) allUpsertKeys.add(s.upsertKey);
@@ -121,8 +125,16 @@ describe("JSONL / SQLite store parity", () => {
 
     for (const batch of batches) {
       for (const s of batch.snapshots) {
-        const jsonlSeen = await jsonlStore.hasSeenMarker(s.repository, s.sourceCommentId, s.markerSha);
-        const sqliteSeen = await sqliteStore.hasSeenMarker(s.repository, s.sourceCommentId, s.markerSha);
+        const jsonlSeen = await jsonlStore.hasSeenMarker(
+          s.repository,
+          s.sourceCommentId,
+          s.markerSha,
+        );
+        const sqliteSeen = await sqliteStore.hasSeenMarker(
+          s.repository,
+          s.sourceCommentId,
+          s.markerSha,
+        );
         assert.equal(jsonlSeen, true);
         assert.equal(sqliteSeen, true);
       }

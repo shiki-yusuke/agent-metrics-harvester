@@ -4,8 +4,8 @@
 // run in the harvester, independently of whatever the emitter itself may have checked, and a
 // payload's own internal fields are never sufficient proof of where it's allowed to land.
 
-import type { AuthConfig, RawComment } from "./types.js";
 import type { Change, Repository } from "../protocol/types.js";
+import type { AuthConfig, RawComment } from "./types.js";
 
 export function isTrustedAuthor(comment: RawComment, config: AuthConfig): boolean {
   if (
@@ -35,7 +35,11 @@ export function crossCheckRepositoryAndChange(
   actual: { repositoryFullName: string; comment: RawComment },
 ): CrossCheckResult {
   if (payload.repository.provider !== "github") {
-    return { ok: false, code: "repository_mismatch", detail: `unexpected provider "${payload.repository.provider}"` };
+    return {
+      ok: false,
+      code: "repository_mismatch",
+      detail: `unexpected provider "${payload.repository.provider}"`,
+    };
   }
   if (payload.repository.id !== actual.repositoryFullName) {
     return {
@@ -44,7 +48,10 @@ export function crossCheckRepositoryAndChange(
       detail: `payload.repository.id=${payload.repository.id} !== actual=${actual.repositoryFullName}`,
     };
   }
-  if (payload.change?.number !== undefined && payload.change.number !== actual.comment.issueNumber) {
+  if (
+    payload.change?.number !== undefined &&
+    payload.change.number !== actual.comment.issueNumber
+  ) {
     return {
       ok: false,
       code: "change_mismatch",

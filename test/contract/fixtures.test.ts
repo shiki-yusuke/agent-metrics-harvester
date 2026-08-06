@@ -9,12 +9,12 @@
 // runs the reference script and reports its exit code. execFileVerifyFixturesOracle below
 // keeps that oracle in the loop too, as a belt-and-suspenders cross-check.
 
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 
 import { computeUpsertKey } from "../../src/protocol/canonical.js";
 import { decodeMarker, decodePayloadObject } from "../../src/protocol/decode.js";
@@ -28,6 +28,14 @@ function readText(filename: string): string {
 }
 function readJson(filename: string): unknown {
   return JSON.parse(readText(filename));
+}
+
+interface CorrectionPayload {
+  schema: string;
+  repository: { provider: string; id: string };
+  subject: { namespace: string; type: string; id: string };
+  upsert_key: string;
+  data?: { records?: unknown[] };
 }
 
 interface ManifestEntry {
@@ -98,29 +106,59 @@ describe("agent-metrics/v1 contract fixtures", () => {
       it(entry.id, () => {
         const firstFile = entry.files.first;
         const secondFile = entry.files.second;
-        if (!firstFile || !secondFile) throw new Error(`fixture ${entry.id} missing first/second file`);
-        const first = readJson(firstFile) as any;
-        const second = readJson(secondFile) as any;
+        if (!firstFile || !secondFile)
+          throw new Error(`fixture ${entry.id} missing first/second file`);
+        const first = readJson(firstFile) as CorrectionPayload;
+        const second = readJson(secondFile) as CorrectionPayload;
 
         const firstOutcome = decodePayloadObject(first);
         const secondOutcome = decodePayloadObject(second);
-        assert.equal(firstOutcome.kind, "accepted", `first payload of ${entry.id} must individually validate`);
-        assert.equal(secondOutcome.kind, "accepted", `second payload of ${entry.id} must individually validate`);
+        assert.equal(
+          firstOutcome.kind,
+          "accepted",
+          `first payload of ${entry.id} must individually validate`,
+        );
+        assert.equal(
+          secondOutcome.kind,
+          "accepted",
+          `second payload of ${entry.id} must individually validate`,
+        );
 
-        const firstKey = computeUpsertKey({ schema: first.schema, repository: first.repository, subject: first.subject });
-        const secondKey = computeUpsertKey({ schema: second.schema, repository: second.repository, subject: second.subject });
-        assert.equal(firstKey, secondKey, "correction pair must share the same recomputed upsert_key");
+        const firstKey = computeUpsertKey({
+          schema: first.schema,
+          repository: first.repository,
+          subject: first.subject,
+        });
+        const secondKey = computeUpsertKey({
+          schema: second.schema,
+          repository: second.repository,
+          subject: second.subject,
+        });
+        assert.equal(
+          firstKey,
+          secondKey,
+          "correction pair must share the same recomputed upsert_key",
+        );
         assert.equal(first.upsert_key, firstKey);
         assert.equal(second.upsert_key, secondKey);
 
         if (entry.assert === "same_upsert_key_different_content") {
-          assert.notEqual(JSON.stringify(first), JSON.stringify(second), "pair must differ in content");
+          assert.notEqual(
+            JSON.stringify(first),
+            JSON.stringify(second),
+            "pair must differ in content",
+          );
         }
         if (entry.assert === "same_upsert_key_record_removed") {
           const firstRecords: unknown[] = first.data?.records ?? [];
-          const secondSet = new Set((second.data?.records ?? []).map((r: unknown) => JSON.stringify(r)));
+          const secondSet = new Set(
+            (second.data?.records ?? []).map((r: unknown) => JSON.stringify(r)),
+          );
           const removed = firstRecords.filter((r) => !secondSet.has(JSON.stringify(r)));
-          assert.ok(removed.length > 0, "second payload must drop at least one record present in the first");
+          assert.ok(
+            removed.length > 0,
+            "second payload must drop at least one record present in the first",
+          );
         }
       });
     }

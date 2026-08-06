@@ -7,7 +7,8 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**", "test/**", "scripts/**", "action/**"]
+    "include": ["src/**", "test/**", "scripts/**", "action/**"],
+    "ignore": ["test/contract/vendor/**"]
   },
   "formatter": {
     "enabled": true,

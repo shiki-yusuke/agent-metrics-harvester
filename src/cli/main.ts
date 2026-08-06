@@ -36,7 +36,9 @@ async function main(): Promise<void> {
   const summary = {
     changed: totalChanges > 0,
     results,
-    errors: Object.fromEntries([...errors].map(([repo, err]) => [repo, err instanceof Error ? err.message : String(err)])),
+    errors: Object.fromEntries(
+      [...errors].map(([repo, err]) => [repo, err instanceof Error ? err.message : String(err)]),
+    ),
   };
   console.log(JSON.stringify(summary));
 

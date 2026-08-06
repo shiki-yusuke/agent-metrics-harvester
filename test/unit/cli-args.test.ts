@@ -52,7 +52,17 @@ describe("parseArgs", () => {
 
   it("rejects an invalid --store value", () => {
     assert.throws(
-      () => parseArgs(["--repo", "octo/example", "--store-path", "x", "--allowed-login", "a", "--store", "yaml"]),
+      () =>
+        parseArgs([
+          "--repo",
+          "octo/example",
+          "--store-path",
+          "x",
+          "--allowed-login",
+          "a",
+          "--store",
+          "yaml",
+        ]),
       CliArgError,
     );
   });

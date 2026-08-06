@@ -3,7 +3,12 @@
 // CommentSource interface application/harvest.ts programs against -- no network, no GitHub
 // API shape, just a fixed list of RawComment objects supplied by the test.
 
-import type { CommentSource, FetchCommentsParams, FetchCommentsResult, RawComment } from "../../src/application/types.js";
+import type {
+  CommentSource,
+  FetchCommentsParams,
+  FetchCommentsResult,
+  RawComment,
+} from "../../src/application/types.js";
 
 export class FakeGithubCommentSource implements CommentSource {
   constructor(

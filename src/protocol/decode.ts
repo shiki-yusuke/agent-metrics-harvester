@@ -9,7 +9,13 @@ import { decodeEnvelopeFields, parseMarker } from "./envelope.js";
 import { checkLimits } from "./limits.js";
 import { scanPersonalDimensions } from "./personal-dimension.js";
 import { validateEnvelope, validateTokenUsagePayload } from "./schema.js";
-import type { DecodeOutcome, Repository, RejectionReason, Subject, TokenUsagePayload } from "./types.js";
+import type {
+  DecodeOutcome,
+  RejectionReason,
+  Repository,
+  Subject,
+  TokenUsagePayload,
+} from "./types.js";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -39,21 +45,30 @@ export function checkPayload(payload: unknown, rawByteLength: number): Rejection
     // the envelope level so "malformed envelope" is distinguishable from "well-formed
     // envelope, unsupported kind", same split as the vendored oracle.
     reasons.push({ code: "unsupported_schema_kind" });
-    for (const e of validateEnvelope(payload)) reasons.push({ code: "schema_validation_failed", detail: e });
+    for (const e of validateEnvelope(payload))
+      reasons.push({ code: "schema_validation_failed", detail: e });
     for (const v of scanPersonalDimensions(payload)) {
       reasons.push({ code: "personal_dimension_forbidden_key", detail: v });
     }
-    for (const l of checkLimits(payload, rawByteLength)) reasons.push({ code: l.code, detail: l.detail });
+    for (const l of checkLimits(payload, rawByteLength))
+      reasons.push({ code: l.code, detail: l.detail });
     return dedupe(reasons);
   }
 
-  for (const e of validateTokenUsagePayload(payload)) reasons.push({ code: "schema_validation_failed", detail: e });
+  for (const e of validateTokenUsagePayload(payload))
+    reasons.push({ code: "schema_validation_failed", detail: e });
   for (const v of scanPersonalDimensions(payload)) {
     reasons.push({ code: "personal_dimension_forbidden_key", detail: v });
   }
-  for (const l of checkLimits(payload, rawByteLength)) reasons.push({ code: l.code, detail: l.detail });
+  for (const l of checkLimits(payload, rawByteLength))
+    reasons.push({ code: l.code, detail: l.detail });
 
-  if (isRecord(payload) && typeof payload.upsert_key === "string" && isRecord(payload.repository) && isRecord(payload.subject)) {
+  if (
+    isRecord(payload) &&
+    typeof payload.upsert_key === "string" &&
+    isRecord(payload.repository) &&
+    isRecord(payload.subject)
+  ) {
     const recomputed = computeUpsertKey({
       schema: schemaValue,
       repository: payload.repository as unknown as Repository,

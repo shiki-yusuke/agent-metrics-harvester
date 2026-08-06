@@ -55,7 +55,7 @@ describe("SqliteStore crash injection (transaction rollback)", () => {
       {
         repository: source,
         commentId: 3,
-        reasons: [{ code: "schema_validation_failed", detail: (1n as unknown as string) }],
+        reasons: [{ code: "schema_validation_failed", detail: 1n as unknown as string }],
         detectedAt: "2026-01-02T00:00:00Z",
       },
     ];
@@ -81,7 +81,10 @@ describe("SqliteStore crash injection (transaction rollback)", () => {
     );
 
     // The checkpoint must still be exactly where the first, successful batch left it.
-    assert.deepEqual(await store.readCheckpoint(source), { updatedAt: "2026-01-01T00:00:00Z", commentId: 1 });
+    assert.deepEqual(await store.readCheckpoint(source), {
+      updatedAt: "2026-01-01T00:00:00Z",
+      commentId: 1,
+    });
     // The second batch's snapshot -- written by a statement that ran *before* the throw inside
     // the same transaction -- must not be visible: the whole transaction rolled back.
     assert.equal(await store.readSnapshot(payload2.upsert_key), null);

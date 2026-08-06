@@ -3,8 +3,8 @@
 // Checkpoint) only ever moves via a successful commitBatch -- see test/unit/crash-injection
 // for the property this file depends on the Store implementations to uphold.
 
-import { parseMarker } from "../protocol/envelope.js";
 import { decodeMarker } from "../protocol/decode.js";
+import { parseMarker } from "../protocol/envelope.js";
 import { scanPersonalDimensions } from "../protocol/personal-dimension.js";
 import type { RejectionReason } from "../protocol/types.js";
 import { normalizeTokenUsagePayload } from "./normalize.js";
@@ -180,7 +180,12 @@ export async function harvestRepository(
         commentId: comment.id,
         commentUrl: comment.htmlUrl,
         markerSha: declaredSha,
-        reasons: [{ code: crossCheck.code as NonNullable<typeof crossCheck.code>, detail: crossCheck.detail }],
+        reasons: [
+          {
+            code: crossCheck.code as NonNullable<typeof crossCheck.code>,
+            detail: crossCheck.detail,
+          },
+        ],
         detectedAt: now().toISOString(),
       });
       lastProcessed = comment;
@@ -227,13 +232,22 @@ export async function harvestRepository(
 
   const resolvedEtag = fetchResult.newEtag ?? checkpoint?.etag;
   const nextCheckpoint: Checkpoint = lastProcessed
-    ? { updatedAt: lastProcessed.updatedAt, commentId: lastProcessed.id, ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}) }
+    ? {
+        updatedAt: lastProcessed.updatedAt,
+        commentId: lastProcessed.id,
+        ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}),
+      }
     : checkpoint
       ? { ...checkpoint, ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}) }
-      : { updatedAt: since, commentId: 0, ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}) };
+      : {
+          updatedAt: since,
+          commentId: 0,
+          ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}),
+        };
 
   const etagChanged = fetchResult.newEtag !== undefined && fetchResult.newEtag !== checkpoint?.etag;
-  const hasWork = snapshotsByKey.size > 0 || rejections.length > 0 || lastProcessed !== null || etagChanged;
+  const hasWork =
+    snapshotsByKey.size > 0 || rejections.length > 0 || lastProcessed !== null || etagChanged;
 
   if (hasWork) {
     await store.commitBatch({
@@ -268,7 +282,10 @@ export interface HarvestAllResult {
 }
 
 export async function harvestAll(
-  repositories: readonly { readonly source: CommentSource; readonly options: HarvestRepositoryOptions }[],
+  repositories: readonly {
+    readonly source: CommentSource;
+    readonly options: HarvestRepositoryOptions;
+  }[],
   store: Store,
   safetyValve: SafetyValve,
   now?: () => Date,

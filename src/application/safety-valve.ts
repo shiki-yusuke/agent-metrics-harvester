@@ -12,7 +12,10 @@ export interface SafetyValveOptions {
 
 export interface StopCheck {
   readonly stop: boolean;
-  readonly reason?: "max_api_requests_exceeded" | "max_runtime_exceeded" | "rate_limit_floor_reached";
+  readonly reason?:
+    | "max_api_requests_exceeded"
+    | "max_runtime_exceeded"
+    | "rate_limit_floor_reached";
 }
 
 export class SafetyValve {
@@ -41,7 +44,10 @@ export class SafetyValve {
     if (this.opts.maxApiRequests !== undefined && this.requestCount >= this.opts.maxApiRequests) {
       return { stop: true, reason: "max_api_requests_exceeded" };
     }
-    if (this.opts.maxRuntimeMs !== undefined && this.now() - this.startedAt >= this.opts.maxRuntimeMs) {
+    if (
+      this.opts.maxRuntimeMs !== undefined &&
+      this.now() - this.startedAt >= this.opts.maxRuntimeMs
+    ) {
       return { stop: true, reason: "max_runtime_exceeded" };
     }
     if (

@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
-const copies = [[join(rootDir, "test", "contract", "vendor"), join(rootDir, "dist", "test", "contract", "vendor")]];
+const copies = [
+  [
+    join(rootDir, "test", "contract", "vendor"),
+    join(rootDir, "dist", "test", "contract", "vendor"),
+  ],
+];
 
 for (const [src, dest] of copies) {
   if (!existsSync(src)) continue;

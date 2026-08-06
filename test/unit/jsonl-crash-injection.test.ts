@@ -84,7 +84,11 @@ describe("JsonlStore crash injection", () => {
     assert.equal(crashedSnapshot, null, "the crashed batch's snapshot must not be visible");
 
     const seenAfterCrash = await store2.hasSeenMarker(source, 2, crashedSha);
-    assert.equal(seenAfterCrash, false, "the crashed batch's seen-marker must not be visible either");
+    assert.equal(
+      seenAfterCrash,
+      false,
+      "the crashed batch's seen-marker must not be visible either",
+    );
 
     const originalSnapshot = await store2.readSnapshot(payload1.upsert_key);
     assert.ok(originalSnapshot, "the earlier, fully-committed snapshot must still be intact");
@@ -110,7 +114,10 @@ describe("JsonlStore crash injection", () => {
     });
 
     const store3 = await JsonlStore.open(filePath);
-    assert.deepEqual(await store3.readCheckpoint(source), { updatedAt: "2026-01-02T00:00:00Z", commentId: 2 });
+    assert.deepEqual(await store3.readCheckpoint(source), {
+      updatedAt: "2026-01-02T00:00:00Z",
+      commentId: 2,
+    });
     assert.ok(await store3.readSnapshot(payload2.upsert_key), "retried batch is now visible");
   });
 

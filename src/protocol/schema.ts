@@ -23,7 +23,12 @@ const GENERATED_AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const UPSERT_KEY_RE = /^am1_[0-9a-f]{64}$/;
 const SCHEMA_ID_RE = /^[a-z][a-z0-9-]*\/v[0-9]+$/;
 
-function checkAdditionalProperties(obj: Obj, known: readonly string[], pathStr: string, out: string[]) {
+function checkAdditionalProperties(
+  obj: Obj,
+  known: readonly string[],
+  pathStr: string,
+  out: string[],
+) {
   const knownSet = new Set(known);
   for (const key of Object.keys(obj)) {
     if (!knownSet.has(key)) out.push(`${pathStr}: additional property "${key}" not allowed`);
@@ -74,8 +79,10 @@ export function validateEnvelope(payload: unknown, pathStr = "$"): string[] {
     if (!isObj(e)) {
       errors.push(`${pathStr}.emitter: expected object`);
     } else {
-      if (!isNonEmptyString(e.name)) errors.push(`${pathStr}.emitter.name: expected non-empty string`);
-      if (!isNonEmptyString(e.version)) errors.push(`${pathStr}.emitter.version: expected non-empty string`);
+      if (!isNonEmptyString(e.name))
+        errors.push(`${pathStr}.emitter.name: expected non-empty string`);
+      if (!isNonEmptyString(e.version))
+        errors.push(`${pathStr}.emitter.version: expected non-empty string`);
       checkAdditionalProperties(e, ["name", "version"], `${pathStr}.emitter`, errors);
     }
   }
@@ -85,7 +92,8 @@ export function validateEnvelope(payload: unknown, pathStr = "$"): string[] {
       errors.push(`${pathStr}.subject: expected object`);
     } else {
       for (const k of ["namespace", "type", "id"]) {
-        if (!isNonEmptyString(s[k])) errors.push(`${pathStr}.subject.${k}: expected non-empty string`);
+        if (!isNonEmptyString(s[k]))
+          errors.push(`${pathStr}.subject.${k}: expected non-empty string`);
       }
       checkAdditionalProperties(s, ["namespace", "type", "id"], `${pathStr}.subject`, errors);
     }
@@ -96,7 +104,8 @@ export function validateEnvelope(payload: unknown, pathStr = "$"): string[] {
       errors.push(`${pathStr}.repository: expected object`);
     } else {
       for (const k of ["provider", "id"]) {
-        if (!isNonEmptyString(r[k])) errors.push(`${pathStr}.repository.${k}: expected non-empty string`);
+        if (!isNonEmptyString(r[k]))
+          errors.push(`${pathStr}.repository.${k}: expected non-empty string`);
       }
       checkAdditionalProperties(r, ["provider", "id"], `${pathStr}.repository`, errors);
     }
@@ -106,11 +115,20 @@ export function validateEnvelope(payload: unknown, pathStr = "$"): string[] {
     if (!isObj(c)) {
       errors.push(`${pathStr}.change: expected object`);
     } else {
-      if ("type" in c && !isNonEmptyString(c.type)) errors.push(`${pathStr}.change.type: expected non-empty string`);
-      if ("number" in c && !isNonNegInt(c.number)) errors.push(`${pathStr}.change.number: expected non-negative integer`);
-      if ("url" in c && !isNonEmptyString(c.url)) errors.push(`${pathStr}.change.url: expected non-empty string`);
-      if ("head_sha" in c && !isNonEmptyString(c.head_sha)) errors.push(`${pathStr}.change.head_sha: expected non-empty string`);
-      checkAdditionalProperties(c, ["type", "number", "url", "head_sha"], `${pathStr}.change`, errors);
+      if ("type" in c && !isNonEmptyString(c.type))
+        errors.push(`${pathStr}.change.type: expected non-empty string`);
+      if ("number" in c && !isNonNegInt(c.number))
+        errors.push(`${pathStr}.change.number: expected non-negative integer`);
+      if ("url" in c && !isNonEmptyString(c.url))
+        errors.push(`${pathStr}.change.url: expected non-empty string`);
+      if ("head_sha" in c && !isNonEmptyString(c.head_sha))
+        errors.push(`${pathStr}.change.head_sha: expected non-empty string`);
+      checkAdditionalProperties(
+        c,
+        ["type", "number", "url", "head_sha"],
+        `${pathStr}.change`,
+        errors,
+      );
     }
   }
   if ("generated_at" in payload) {
@@ -125,7 +143,17 @@ export function validateEnvelope(payload: unknown, pathStr = "$"): string[] {
 
   checkAdditionalProperties(
     payload,
-    ["protocol_version", "schema", "upsert_key", "emitter", "subject", "repository", "change", "generated_at", "data"],
+    [
+      "protocol_version",
+      "schema",
+      "upsert_key",
+      "emitter",
+      "subject",
+      "repository",
+      "change",
+      "generated_at",
+      "data",
+    ],
     pathStr,
     errors,
   );
@@ -159,31 +187,58 @@ function validateTokenUsageRecord(rec: unknown, pathStr: string): string[] {
     if (!isObj(a)) {
       errors.push(`${pathStr}.activity: expected object`);
     } else {
-      if (!isNonEmptyString(a.namespace)) errors.push(`${pathStr}.activity.namespace: expected non-empty string`);
-      if (!isNonEmptyString(a.name)) errors.push(`${pathStr}.activity.name: expected non-empty string`);
+      if (!isNonEmptyString(a.namespace))
+        errors.push(`${pathStr}.activity.namespace: expected non-empty string`);
+      if (!isNonEmptyString(a.name))
+        errors.push(`${pathStr}.activity.name: expected non-empty string`);
       checkAdditionalProperties(a, ["namespace", "name"], `${pathStr}.activity`, errors);
     }
   }
-  if ("agent" in rec && !isNonEmptyString(rec.agent)) errors.push(`${pathStr}.agent: expected non-empty string`);
-  if ("model" in rec && !isNonEmptyString(rec.model)) errors.push(`${pathStr}.model: expected non-empty string`);
-  if ("token_kind" in rec && (typeof rec.token_kind !== "string" || !TOKEN_KINDS.has(rec.token_kind))) {
+  if ("agent" in rec && !isNonEmptyString(rec.agent))
+    errors.push(`${pathStr}.agent: expected non-empty string`);
+  if ("model" in rec && !isNonEmptyString(rec.model))
+    errors.push(`${pathStr}.model: expected non-empty string`);
+  if (
+    "token_kind" in rec &&
+    (typeof rec.token_kind !== "string" || !TOKEN_KINDS.has(rec.token_kind))
+  ) {
     errors.push(`${pathStr}.token_kind: not in enum`);
   }
-  if ("tokens" in rec && !isNonNegInt(rec.tokens)) errors.push(`${pathStr}.tokens: expected non-negative integer`);
-  if ("priced_tokens" in rec && !isNonNegInt(rec.priced_tokens)) errors.push(`${pathStr}.priced_tokens: expected non-negative integer`);
-  if ("unpriced_tokens" in rec && !isNonNegInt(rec.unpriced_tokens)) errors.push(`${pathStr}.unpriced_tokens: expected non-negative integer`);
-  if ("estimated_cost_usd" in rec && !(typeof rec.estimated_cost_usd === "number" && rec.estimated_cost_usd >= 0)) {
+  if ("tokens" in rec && !isNonNegInt(rec.tokens))
+    errors.push(`${pathStr}.tokens: expected non-negative integer`);
+  if ("priced_tokens" in rec && !isNonNegInt(rec.priced_tokens))
+    errors.push(`${pathStr}.priced_tokens: expected non-negative integer`);
+  if ("unpriced_tokens" in rec && !isNonNegInt(rec.unpriced_tokens))
+    errors.push(`${pathStr}.unpriced_tokens: expected non-negative integer`);
+  if (
+    "estimated_cost_usd" in rec &&
+    !(typeof rec.estimated_cost_usd === "number" && rec.estimated_cost_usd >= 0)
+  ) {
     errors.push(`${pathStr}.estimated_cost_usd: expected number >= 0`);
   }
   if ("credits" in rec && !(typeof rec.credits === "number" && rec.credits >= 0)) {
     errors.push(`${pathStr}.credits: expected number >= 0`);
   }
-  if ("pricing_status" in rec && (typeof rec.pricing_status !== "string" || !PRICING_STATUSES.has(rec.pricing_status))) {
+  if (
+    "pricing_status" in rec &&
+    (typeof rec.pricing_status !== "string" || !PRICING_STATUSES.has(rec.pricing_status))
+  ) {
     errors.push(`${pathStr}.pricing_status: not in enum`);
   }
   checkAdditionalProperties(
     rec,
-    ["activity", "agent", "model", "token_kind", "tokens", "priced_tokens", "unpriced_tokens", "estimated_cost_usd", "credits", "pricing_status"],
+    [
+      "activity",
+      "agent",
+      "model",
+      "token_kind",
+      "tokens",
+      "priced_tokens",
+      "unpriced_tokens",
+      "estimated_cost_usd",
+      "credits",
+      "pricing_status",
+    ],
     pathStr,
     errors,
   );
@@ -204,7 +259,8 @@ function validateCoverage(cov: unknown, pathStr: string): string[] {
     errors.push(`${pathStr}.status: not in enum`);
   }
   for (const k of ["eligible_entries", "measured_entries", "excluded_entries"]) {
-    if (k in cov && !isNonNegInt(cov[k])) errors.push(`${pathStr}.${k}: expected non-negative integer`);
+    if (k in cov && !isNonNegInt(cov[k]))
+      errors.push(`${pathStr}.${k}: expected non-negative integer`);
   }
   if ("omissions" in cov && cov.omissions !== undefined) {
     const omissions = cov.omissions;
@@ -219,12 +275,18 @@ function validateCoverage(cov: unknown, pathStr: string): string[] {
         }
         if (!isNonEmptyString(o.entry_id)) errors.push(`${p}.entry_id: expected non-empty string`);
         if (!isNonEmptyString(o.reason)) errors.push(`${p}.reason: expected non-empty string`);
-        if ("detail" in o && typeof o.detail !== "string") errors.push(`${p}.detail: expected string`);
+        if ("detail" in o && typeof o.detail !== "string")
+          errors.push(`${p}.detail: expected string`);
         checkAdditionalProperties(o, ["entry_id", "reason", "detail"], p, errors);
       });
     }
   }
-  checkAdditionalProperties(cov, ["status", "eligible_entries", "measured_entries", "excluded_entries", "omissions"], pathStr, errors);
+  checkAdditionalProperties(
+    cov,
+    ["status", "eligible_entries", "measured_entries", "excluded_entries", "omissions"],
+    pathStr,
+    errors,
+  );
   return errors;
 }
 
@@ -250,7 +312,9 @@ function validateTokenUsageData(data: unknown, pathStr: string): string[] {
       if (records.length > MAX_RECORDS) {
         errors.push(`${pathStr}.records: array length ${records.length} > maxItems ${MAX_RECORDS}`);
       }
-      records.forEach((r, i) => errors.push(...validateTokenUsageRecord(r, `${pathStr}.records[${i}]`)));
+      records.forEach((r, i) =>
+        errors.push(...validateTokenUsageRecord(r, `${pathStr}.records[${i}]`)),
+      );
     }
   }
   if ("coverage" in data) errors.push(...validateCoverage(data.coverage, `${pathStr}.coverage`));

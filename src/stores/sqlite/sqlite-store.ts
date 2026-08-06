@@ -6,10 +6,15 @@
 // backend (if anything inside the transaction throws, better-sqlite3's `db.transaction()`
 // wrapper rolls the whole thing back; see test/unit/crash-injection).
 
-import Database from "better-sqlite3";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { Checkpoint, CommitBatchInput, Store, StoredSnapshot } from "../../application/types.js";
+import Database from "better-sqlite3";
+import type {
+  Checkpoint,
+  CommitBatchInput,
+  Store,
+  StoredSnapshot,
+} from "../../application/types.js";
 import { CheckpointConflictError } from "../../application/types.js";
 
 const SCHEMA = `
@@ -68,7 +73,11 @@ export class SqliteStore implements Store {
       .prepare("SELECT updated_at, comment_id, etag FROM checkpoints WHERE source = ?")
       .get(source) as { updated_at: string; comment_id: number; etag: string | null } | undefined;
     if (!row) return null;
-    return { updatedAt: row.updated_at, commentId: row.comment_id, ...(row.etag ? { etag: row.etag } : {}) };
+    return {
+      updatedAt: row.updated_at,
+      commentId: row.comment_id,
+      ...(row.etag ? { etag: row.etag } : {}),
+    };
   }
 
   async readCheckpoint(source: string): Promise<Checkpoint | null> {
@@ -77,7 +86,9 @@ export class SqliteStore implements Store {
 
   async hasSeenMarker(repository: string, commentId: number, markerSha: string): Promise<boolean> {
     const row = this.db
-      .prepare("SELECT 1 FROM seen_markers WHERE repository = ? AND comment_id = ? AND marker_sha = ?")
+      .prepare(
+        "SELECT 1 FROM seen_markers WHERE repository = ? AND comment_id = ? AND marker_sha = ?",
+      )
       .get(repository, commentId, markerSha);
     return row !== undefined;
   }
@@ -150,7 +161,14 @@ export class SqliteStore implements Store {
         if (s.markerSha) insertSeen.run(s.repository, s.sourceCommentId, s.markerSha);
       }
       for (const r of batch.rejections) {
-        insertRejection.run(r.repository, r.commentId, r.commentUrl ?? null, r.markerSha ?? null, JSON.stringify(r.reasons), r.detectedAt);
+        insertRejection.run(
+          r.repository,
+          r.commentId,
+          r.commentUrl ?? null,
+          r.markerSha ?? null,
+          JSON.stringify(r.reasons),
+          r.detectedAt,
+        );
         if (r.markerSha) insertSeen.run(r.repository, r.commentId, r.markerSha);
       }
       upsertCheckpoint.run({
