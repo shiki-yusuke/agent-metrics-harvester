@@ -16,6 +16,7 @@ import type {
   StoredSnapshot,
 } from "../../application/types.js";
 import { CheckpointConflictError } from "../../application/types.js";
+import { SNAPSHOT_COLUMNS, type SnapshotRow, rowToStoredSnapshot } from "./mapping.js";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS checkpoints (
@@ -95,28 +96,10 @@ export class SqliteStore implements Store {
 
   async readSnapshot(upsertKey: string): Promise<StoredSnapshot | null> {
     const row = this.db
-      .prepare(
-        "SELECT upsert_key, repository, payload, source_comment_id, source_updated_at, marker_sha FROM snapshots WHERE upsert_key = ?",
-      )
-      .get(upsertKey) as
-      | {
-          upsert_key: string;
-          repository: string;
-          payload: string;
-          source_comment_id: number;
-          source_updated_at: string;
-          marker_sha: string;
-        }
-      | undefined;
+      .prepare(`SELECT ${SNAPSHOT_COLUMNS} FROM snapshots WHERE upsert_key = ?`)
+      .get(upsertKey) as SnapshotRow | undefined;
     if (!row) return null;
-    return {
-      upsertKey: row.upsert_key,
-      repository: row.repository,
-      payload: JSON.parse(row.payload),
-      sourceCommentId: row.source_comment_id,
-      sourceUpdatedAt: row.source_updated_at,
-      markerSha: row.marker_sha,
-    };
+    return rowToStoredSnapshot(row);
   }
 
   async commitBatch(input: CommitBatchInput): Promise<void> {
