@@ -122,4 +122,34 @@ describe("resolvePeriod: invalid input", () => {
   it("rejects an invalid IANA timezone", () => {
     assert.throws(() => resolvePeriod("2026-07", "Not/A_Zone"), InvalidPeriodError);
   });
+
+  it("must-1 regression: rejects a W53 for an ISO year that does not actually have 53 weeks", () => {
+    // 2027 has only 52 ISO weeks (2027-01-01 is a Friday) -- 2027-W53 does not exist and must
+    // not silently resolve to a week that actually belongs to 2028.
+    assert.throws(() => resolvePeriod("2027-W53", "UTC"), InvalidPeriodError);
+  });
+
+  it("must-1 regression: accepts a W53 for an ISO year that does have 53 weeks", () => {
+    // 2026 has 53 ISO weeks (2026-01-01 is a Thursday).
+    const p = resolvePeriod("2026-W53", "UTC");
+    assert.equal(new Date(p.startMs).getUTCDay(), 1);
+    assert.equal(p.endMs - p.startMs, 7 * 86_400_000);
+  });
+
+  it("must-1 regression: W53 validity is checked per-year across a range of years with and without a 53rd week", () => {
+    // Independently confirms the acceptance/rejection boundary for several years rather than
+    // relying on a single hardcoded example either way.
+    const yearsWith53Weeks = [2015, 2020, 2026, 2032];
+    const yearsWith52Weeks = [2016, 2021, 2027, 2033];
+    for (const year of yearsWith53Weeks) {
+      assert.doesNotThrow(() => resolvePeriod(`${year}-W53`, "UTC"), `${year} should have a W53`);
+    }
+    for (const year of yearsWith52Weeks) {
+      assert.throws(
+        () => resolvePeriod(`${year}-W53`, "UTC"),
+        InvalidPeriodError,
+        `${year} should not have a W53`,
+      );
+    }
+  });
 });

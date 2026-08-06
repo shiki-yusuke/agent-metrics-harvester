@@ -137,6 +137,25 @@ function isoWeekMonday(
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
+/** ISO week number of a given UTC-midnight date, via the standard algorithm (shift to that
+ * week's Thursday, then count weeks from that Thursday's year's own week 1). Used only to
+ * determine how many ISO weeks a year has (see isoWeeksInYear) -- not exposed. */
+function isoWeekNumberOf(year: number, month1to12: number, day: number): number {
+  const d = new Date(Date.UTC(year, month1to12 - 1, day));
+  const dayNum = d.getUTCDay() || 7; // Mon=1 .. Sun=7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum); // shift to this week's Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+}
+
+/** How many ISO weeks `isoYear` actually has -- 52 for most years, 53 for a year whose Jan 1
+ * is a Thursday, or a leap year whose Jan 1 is a Wednesday. Dec 28 is always inside the last
+ * ISO week of its year (ISO week 1 of the *next* year never starts before Dec 29), so its own
+ * ISO week number is exactly that count. */
+function isoWeeksInYear(isoYear: number): number {
+  return isoWeekNumberOf(isoYear, 12, 28);
+}
+
 function addCalendarDays(
   year: number,
   month1to12: number,
@@ -173,6 +192,12 @@ export function resolvePeriod(label: string, timezone: string): Period {
     const isoWeek = Number(weekMatch[2]);
     if (isoWeek < 1 || isoWeek > 53) {
       throw new InvalidPeriodError(`invalid --week "${label}": ISO week must be 01-53`);
+    }
+    const maxWeek = isoWeeksInYear(isoYear);
+    if (isoWeek > maxWeek) {
+      throw new InvalidPeriodError(
+        `invalid --week "${label}": ISO year ${isoYear} only has ${maxWeek} weeks`,
+      );
     }
     const monday = isoWeekMonday(isoYear, isoWeek);
     const nextMonday = addCalendarDays(monday.year, monday.month, monday.day, 7);
