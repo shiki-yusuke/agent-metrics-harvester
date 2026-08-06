@@ -19,7 +19,12 @@ import { makeTokenUsagePayload } from "../support/fixtures.js";
 const REPO = "octo/example";
 const FINGERPRINT = computeInputFingerprint({
   snapshots: [],
+  periodStartUtc: "2026-01-01T00:00:00Z",
+  periodEndUtc: "2026-02-01T00:00:00Z",
+  repositories: [REPO],
+  mergedPrs: [],
   cacheVersion: "pr-metadata-cache/v1",
+  minSampleSize: 5,
 });
 
 function readerWithCost(totalCostUsd: number, count: number, generatedAt: string): SnapshotReader {

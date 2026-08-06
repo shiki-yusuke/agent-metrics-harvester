@@ -240,5 +240,10 @@ describe("runReport: offline (cache-only), JSONL vs SQLite parity", () => {
     assert.equal(parsed.report, "cost-per-pr-comparison");
     assert.equal(parsed.comparison.merged_pr_count.baseline_value, 5);
     assert.equal(parsed.comparison.merged_pr_count.value, 6);
+    // must-3 sanity check, end to end: two genuinely different periods (different boundaries
+    // and different merged-PR sets) must never share an input_fingerprint. The dedicated
+    // sensitivity contract (which input dimension causes the change) is covered in isolation
+    // by test/unit/fingerprint.test.ts.
+    assert.notEqual(run.resultA.inputFingerprint, run.resultB?.inputFingerprint);
   });
 });

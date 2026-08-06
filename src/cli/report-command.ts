@@ -8,7 +8,11 @@
 import { readFile } from "node:fs/promises";
 import { SafetyValve } from "../application/safety-valve.js";
 import { type ComparisonResult, compareResults } from "../report/comparison.js";
-import { type CostPerPrResult, computeCostPerPr } from "../report/cost-per-pr.js";
+import {
+  type CostPerPrResult,
+  DEFAULT_MIN_SAMPLE_SIZE,
+  computeCostPerPr,
+} from "../report/cost-per-pr.js";
 import { computeInputFingerprint } from "../report/fingerprint.js";
 import { isWithinPeriod, resolvePeriod } from "../report/period.js";
 import { loadCache, saveCache } from "../report/pr-metadata/cache.js";
@@ -82,9 +86,22 @@ async function computeOnePeriod(
   const inPeriodSnapshots = allSnapshots.filter((s) =>
     isWithinPeriod(s.payload.generated_at, period),
   );
+  const mergedPrs = repositories.flatMap(
+    (repo) => metadataResult.recordsByRepository.get(repo) ?? [],
+  );
+  const resolvedMinSampleSize = opts.minSampleSize ?? DEFAULT_MIN_SAMPLE_SIZE;
   const inputFingerprint = computeInputFingerprint({
     snapshots: inPeriodSnapshots.map((s) => ({ upsertKey: s.upsertKey, markerSha: s.markerSha })),
+    periodStartUtc: period.start.utc,
+    periodEndUtc: period.end.utc,
+    repositories,
+    mergedPrs: mergedPrs.map((pr) => ({
+      repository: pr.repository,
+      prNumber: pr.prNumber,
+      mergedAt: pr.mergedAt,
+    })),
     cacheVersion: PR_METADATA_CACHE_VERSION,
+    minSampleSize: resolvedMinSampleSize,
     teamConfigHash,
   });
 
@@ -97,7 +114,7 @@ async function computeOnePeriod(
     metadataAsOf: metadataResult.asOf,
     metadataApiRequestsUsed: metadataResult.apiRequestsUsed,
     inputFingerprint,
-    minSampleSize: opts.minSampleSize,
+    minSampleSize: resolvedMinSampleSize,
   });
 
   return { result, updatedCache: metadataResult.cache };
