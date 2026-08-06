@@ -67,7 +67,7 @@ node dist/src/cli/main.js \
 |---|---|
 | `--repo <owner/repo>` | Repeatable. At least one required. |
 | `--store <jsonl\|sqlite>` | Store backend. Default `jsonl`. |
-| `--store-path <path>` | Required. File path for the store. |
+| `--store-path <path>` | Required. File path for the store. Must not contain a `..` segment (rejected outright) -- the Action wrapper builds its actual path by concatenating this onto the state checkout's own directory, and a `..` there would escape it. Absolute paths are fine. |
 | `--allowed-login <login>` / `--allowed-app-slug <slug>` | Repeatable. At least one of either is required — see [Trust model](#trust-model). |
 | `--initial-since <ISO8601>` / `--lookback-days <n>` | One is required on a repository's *first* run (no checkpoint yet exists). A first run never silently full-scans a repository's entire comment history. |
 | `--overlap-seconds <n>` | How far behind the last watermark to re-fetch, to tolerate clock/pagination skew. Default 300. |

@@ -61,7 +61,13 @@ inputs:
 
 outputs:
   changed:
-    description: '"true" if this run accepted or rejected at least one marker; "false" if nothing changed (in which case nothing was committed/pushed).'
+    description: >-
+      "true" if the store actually changed this run (i.e. commitBatch ran for at
+      least one repository, matching the "Commit and push state" step's own
+      `git status --porcelain` check) -- this can be "true" even if no marker
+      was accepted or rejected, e.g. when a batch only advanced the cursor past
+      already-seen comments or refreshed an ETag. "false" means nothing was
+      committed/pushed.
     value: ${{ steps.harvest.outputs.changed }}
 
 runs:

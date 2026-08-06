@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.serena/
 *.tgz
 *.log
 .DS_Store
