@@ -12,6 +12,11 @@ export interface MakePayloadOptions {
   readonly changeNumber?: number;
   readonly tokens?: number;
   readonly generatedAt?: string;
+  /** Defaults to 0.01 -- most tests care that a payload's record IS priced with a known cost,
+   * not the exact figure. Pass 0 explicitly (not undefined) if you specifically need a $0
+   * priced record; pass a `data` override instead if you need pricing_status other than
+   * "priced" at all (see test/unit/cost-per-pr.test.ts for that pattern). */
+  readonly estimatedCostUsd?: number;
 }
 
 export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsagePayload {
@@ -51,6 +56,7 @@ export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsage
           token_kind: "output",
           tokens: opts.tokens ?? 100,
           pricing_status: "priced",
+          estimated_cost_usd: opts.estimatedCostUsd ?? 0.01,
         },
       ],
       coverage: {
