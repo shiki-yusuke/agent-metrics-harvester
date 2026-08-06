@@ -35,6 +35,29 @@ describe("SafetyValve", () => {
     valve.recordRequests(1_000_000);
     assert.equal(valve.check(0).stop, false);
   });
+
+  describe("previewCheck (must-2 regression: live, per-page budget enforcement)", () => {
+    it("check() and previewCheck(0, ...) agree -- previewCheck is a strict generalization, not a different check", () => {
+      const valve = new SafetyValve({ maxApiRequests: 3 });
+      assert.equal(valve.previewCheck(0).stop, valve.check().stop);
+      valve.recordRequests(3);
+      assert.equal(valve.previewCheck(0).stop, valve.check().stop);
+    });
+
+    it("treats pendingRequests as additional requests not yet recorded, without mutating requestsUsed", () => {
+      const valve = new SafetyValve({ maxApiRequests: 3 });
+      assert.equal(valve.previewCheck(2).stop, false); // 0 recorded + 2 pending = 2, under 3
+      assert.equal(valve.previewCheck(3).stop, true); // 0 recorded + 3 pending = 3, at the limit
+      assert.equal(valve.requestsUsed, 0, "previewCheck must never mutate the actual counter");
+    });
+
+    it("combines already-recorded usage with pending usage", () => {
+      const valve = new SafetyValve({ maxApiRequests: 5 });
+      valve.recordRequests(3);
+      assert.equal(valve.previewCheck(1).stop, false); // 3 + 1 = 4, under 5
+      assert.equal(valve.previewCheck(2).stop, true); // 3 + 2 = 5, at the limit
+    });
+  });
 });
 
 describe("boundedBackoffDelayMs", () => {

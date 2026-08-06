@@ -23,7 +23,7 @@ export function isTrustedAuthor(comment: RawComment, config: AuthConfig): boolea
 
 export interface CrossCheckResult {
   readonly ok: boolean;
-  readonly code?: "repository_mismatch" | "change_mismatch";
+  readonly code?: "repository_mismatch" | "change_mismatch" | "change_type_mismatch";
   readonly detail?: string;
 }
 
@@ -56,6 +56,19 @@ export function crossCheckRepositoryAndChange(
       ok: false,
       code: "change_mismatch",
       detail: `payload.change.number=${payload.change.number} !== actual issue/PR #${actual.comment.issueNumber}`,
+    };
+  }
+  // The repo-wide issue-comments endpoint returns comments on plain issues and on pull
+  // requests indiscriminately, and issue/PR numbers share one namespace per repository -- so
+  // a marker posted on issue #42 claiming `change: {type: "pull_request", number: 42}` would
+  // pass the number-only check above even though it is not actually about PR #42 at all. Only
+  // this specific claim ("I am about a pull request") is independently verifiable from the
+  // comment's own html_url, so only it is checked here.
+  if (payload.change?.type === "pull_request" && !actual.comment.isPullRequest) {
+    return {
+      ok: false,
+      code: "change_type_mismatch",
+      detail: `payload declares change.type="pull_request" (#${payload.change.number}) but the comment actually appeared on a plain issue, not a pull request`,
     };
   }
   return { ok: true };

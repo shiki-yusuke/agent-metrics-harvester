@@ -37,6 +37,7 @@ function buildComments(): RawComment[] {
   const base = {
     authorLogin: "trusted-ci[bot]",
     authorType: "Bot" as const,
+    isPullRequest: true,
   };
 
   return [

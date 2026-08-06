@@ -81,6 +81,7 @@ export async function harvestRepository(
       requestsUsed: 0,
       stoppedReason: preCheck.reason,
       notModified: false,
+      changed: false,
     };
   }
 
@@ -99,6 +100,7 @@ export async function harvestRepository(
       ignored: 0,
       requestsUsed: fetchResult.requestsUsed,
       notModified: true,
+      changed: false,
     };
   }
 
@@ -230,22 +232,21 @@ export async function harvestRepository(
     lastProcessed = comment;
   }
 
-  const resolvedEtag = fetchResult.newEtag ?? checkpoint?.etag;
-  const nextCheckpoint: Checkpoint = lastProcessed
-    ? {
-        updatedAt: lastProcessed.updatedAt,
-        commentId: lastProcessed.id,
-        ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}),
-      }
-    : checkpoint
-      ? { ...checkpoint, ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}) }
-      : {
-          updatedAt: since,
-          commentId: 0,
-          ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}),
-        };
+  // null means "explicitly clear" (comments-source.ts sets this whenever a fetch spanned more
+  // than one page -- see FetchCommentsResult.newEtag's doc comment); undefined means "leave
+  // the checkpoint's existing etag as-is." Built as a fresh object below (never by spreading
+  // `...checkpoint`) specifically so a "clear" can actually drop the key -- spreading the old
+  // checkpoint first and only conditionally overwriting `etag` would silently carry a
+  // supposedly-cleared etag forward.
+  const resolvedEtag =
+    fetchResult.newEtag === null ? undefined : (fetchResult.newEtag ?? checkpoint?.etag);
+  const nextCheckpoint: Checkpoint = {
+    updatedAt: lastProcessed ? lastProcessed.updatedAt : checkpoint ? checkpoint.updatedAt : since,
+    commentId: lastProcessed ? lastProcessed.id : checkpoint ? checkpoint.commentId : 0,
+    ...(resolvedEtag !== undefined ? { etag: resolvedEtag } : {}),
+  };
 
-  const etagChanged = fetchResult.newEtag !== undefined && fetchResult.newEtag !== checkpoint?.etag;
+  const etagChanged = resolvedEtag !== checkpoint?.etag;
   const hasWork =
     snapshotsByKey.size > 0 || rejections.length > 0 || lastProcessed !== null || etagChanged;
 
@@ -268,6 +269,7 @@ export async function harvestRepository(
     requestsUsed: fetchResult.requestsUsed,
     stoppedReason: fetchResult.budgetStopped ? "budget_stopped_mid_pagination" : undefined,
     notModified: false,
+    changed: hasWork,
   };
 }
 
@@ -305,6 +307,7 @@ export async function harvestAll(
         requestsUsed: 0,
         stoppedReason: stop.reason,
         notModified: false,
+        changed: false,
       });
       continue;
     }

@@ -11,11 +11,24 @@ export interface LimitViolation {
   readonly detail: string;
 }
 
-function maxDepth(value: unknown): number {
-  if (value === null || typeof value !== "object") return 0;
-  const children = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>);
-  if (children.length === 0) return 1;
-  return 1 + Math.max(...children.map(maxDepth));
+// Iterative (non-recursive) depth check with an early bailout, on purpose: a function whose
+// entire job is "detect input that is too deeply nested" must not itself use unbounded
+// recursion to do that detection -- a maliciously deep payload (a few thousand levels of
+// `{"a":{"a":...}}`) would overflow the call stack and crash the whole process *before* the
+// original recursive version ever got to report "too deep." An explicit stack plus an
+// early-return the moment `MAX_DEPTH` is exceeded keeps this safe regardless of how deep a
+// hostile payload goes. See test/unit/deep-nesting-crash.test.ts.
+function exceedsMaxDepth(root: unknown): boolean {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 0 }];
+  while (stack.length > 0) {
+    const frame = stack.pop() as { node: unknown; depth: number };
+    if (frame.depth > MAX_DEPTH) return true;
+    const { node } = frame;
+    if (node === null || typeof node !== "object") continue;
+    const children = Array.isArray(node) ? node : Object.values(node as Record<string, unknown>);
+    for (const child of children) stack.push({ node: child, depth: frame.depth + 1 });
+  }
+  return false;
 }
 
 export function checkLimits(payload: unknown, rawByteLength: number): LimitViolation[] {
@@ -26,9 +39,8 @@ export function checkLimits(payload: unknown, rawByteLength: number): LimitViola
       detail: `${rawByteLength} bytes > ${MAX_PAYLOAD_BYTES}`,
     });
   }
-  const depth = maxDepth(payload);
-  if (depth > MAX_DEPTH) {
-    violations.push({ code: "payload_too_deep", detail: `depth ${depth} > ${MAX_DEPTH}` });
+  if (exceedsMaxDepth(payload)) {
+    violations.push({ code: "payload_too_deep", detail: `nesting exceeds max depth ${MAX_DEPTH}` });
   }
   return violations;
 }

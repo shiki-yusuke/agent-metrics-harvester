@@ -109,7 +109,8 @@ export type RejectionCode =
   | "payload_too_deep"
   | "author_not_trusted"
   | "repository_mismatch"
-  | "change_mismatch";
+  | "change_mismatch"
+  | "change_type_mismatch";
 
 export interface RejectionReason {
   readonly code: RejectionCode;

@@ -36,7 +36,8 @@ export async function runHarvest(opts: CliOptions): Promise<HarvestAllResult> {
   const repositories = opts.repos.map((repo) => {
     const source: CommentSource = new GithubCommentSource(repo, client, {
       maxPages: opts.maxPagesPerFetch,
-      shouldStop: (rateLimitRemaining) => safetyValve.check(rateLimitRemaining).stop,
+      shouldStop: (pagesFetchedSoFar, rateLimitRemaining) =>
+        safetyValve.previewCheck(pagesFetchedSoFar, rateLimitRemaining).stop,
     });
     return { source, options: harvestOptions };
   });

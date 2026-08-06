@@ -79,6 +79,10 @@ export interface MakeCommentOptions {
   readonly updatedAt: string;
   readonly body: string;
   readonly issueNumber?: number;
+  /** Defaults to true -- most existing tests exercise the "marker posted on a PR" path,
+   * matching the vendored fixtures' own `change.type: "pull_request"`. Pass false to build a
+   * plain-issue comment, e.g. for the PR/issue cross-check regression test. */
+  readonly isPullRequest?: boolean;
   readonly authorLogin?: string;
   readonly authorType?: RawComment["authorType"];
   readonly performedViaAppSlug?: string;
@@ -91,6 +95,7 @@ export function makeComment(opts: MakeCommentOptions): RawComment {
     updatedAt: opts.updatedAt,
     htmlUrl: `https://example.invalid/comments/${opts.id}`,
     issueNumber: opts.issueNumber ?? 1,
+    isPullRequest: opts.isPullRequest ?? true,
     authorLogin: opts.authorLogin ?? "trusted-bot[bot]",
     authorType: opts.authorType ?? "Bot",
     ...(opts.performedViaAppSlug ? { performedViaAppSlug: opts.performedViaAppSlug } : {}),

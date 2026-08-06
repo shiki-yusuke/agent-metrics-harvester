@@ -36,6 +36,18 @@ function dedupe(reasons: RejectionReason[]): RejectionReason[] {
 /** Runs the full check pipeline against an already-decoded (marker-unwrapped or bare) JSON
  * payload object. Shared by marker-wrapped and bare-payload fixture/production paths. */
 export function checkPayload(payload: unknown, rawByteLength: number): RejectionReason[] {
+  // Size/depth limits run FIRST and, if violated, short-circuit everything else -- in
+  // particular, before scanPersonalDimensions below ever gets a chance to walk the payload.
+  // checkLimits' depth check is itself iterative/crash-safe (limits.ts), but there is no
+  // reason to let a payload that is already going to be rejected for being too deep also pay
+  // for (or risk) a second full walk; this mirrors "malformed input, reject outright, don't
+  // attempt further interpretation" already used for an unsupported schema kind below. See
+  // test/unit/deep-nesting-crash.test.ts.
+  const limitViolations = checkLimits(payload, rawByteLength);
+  if (limitViolations.length > 0) {
+    return dedupe(limitViolations.map((l) => ({ code: l.code, detail: l.detail })));
+  }
+
   const reasons: RejectionReason[] = [];
 
   const schemaValue = isRecord(payload) ? payload.schema : undefined;
@@ -50,8 +62,6 @@ export function checkPayload(payload: unknown, rawByteLength: number): Rejection
     for (const v of scanPersonalDimensions(payload)) {
       reasons.push({ code: "personal_dimension_forbidden_key", detail: v });
     }
-    for (const l of checkLimits(payload, rawByteLength))
-      reasons.push({ code: l.code, detail: l.detail });
     return dedupe(reasons);
   }
 
@@ -60,8 +70,6 @@ export function checkPayload(payload: unknown, rawByteLength: number): Rejection
   for (const v of scanPersonalDimensions(payload)) {
     reasons.push({ code: "personal_dimension_forbidden_key", detail: v });
   }
-  for (const l of checkLimits(payload, rawByteLength))
-    reasons.push({ code: l.code, detail: l.detail });
 
   if (
     isRecord(payload) &&

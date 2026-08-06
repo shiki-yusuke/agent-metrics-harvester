@@ -40,6 +40,16 @@ function issueNumberFromIssueUrl(issueUrl: string): number {
   return match ? Number.parseInt(match[1] as string, 10) : Number.NaN;
 }
 
+// The repo-wide issue-comments endpoint (`/repos/{owner}/{repo}/issues/comments`) returns
+// comments on plain issues and on pull requests indiscriminately -- `issue_url` always reads
+// `.../issues/{n}` for both kinds (GitHub models a PR as an issue internally), but `html_url`
+// reliably differs: `.../pull/{n}#issuecomment-...` for a PR comment, `.../issues/{n}#...`
+// for a plain issue comment. This is the only field on the comment itself (as opposed to a
+// separate, extra lookup of the parent issue/PR) that distinguishes the two.
+function isPullRequestFromHtmlUrl(htmlUrl: string): boolean {
+  return /\/pull\/\d+/.test(htmlUrl);
+}
+
 function toRawComment(c: GithubApiComment): RawComment {
   return {
     id: c.id,
@@ -47,6 +57,7 @@ function toRawComment(c: GithubApiComment): RawComment {
     updatedAt: c.updated_at,
     htmlUrl: c.html_url,
     issueNumber: issueNumberFromIssueUrl(c.issue_url),
+    isPullRequest: isPullRequestFromHtmlUrl(c.html_url),
     authorLogin: c.user?.login ?? "",
     authorType: c.user?.type ?? "User",
     ...(c.performed_via_github_app?.slug

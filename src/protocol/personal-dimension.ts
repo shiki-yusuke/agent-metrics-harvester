@@ -22,21 +22,41 @@ export const FORBIDDEN_PERSONAL_DIMENSION_KEYS: ReadonlySet<string> = new Set([
   "real_name",
 ]);
 
+// A hard ceiling on how deep this walker will ever descend, independent of and in addition to
+// limits.ts's own MAX_DEPTH check. checkPayload (decode.ts) already runs checkLimits first and
+// short-circuits before this scan ever sees a too-deep payload in the normal pipeline -- this
+// ceiling exists so scanPersonalDimensions is *also* safe to call directly (e.g.
+// application/harvest.ts's independent Goodhart re-check call site) without depending on that
+// ordering elsewhere continuing to hold in the future.
+const HARD_DEPTH_CEILING = 64;
+
 /** Returns the dotted/bracketed paths of every forbidden personal-dimension key found
- * anywhere in `value` (nested, not just top-level). An empty array means no violations. */
-export function scanPersonalDimensions(value: unknown, pathStr = ""): string[] {
+ * anywhere in `value` (nested, not just top-level). An empty array means no violations.
+ *
+ * Implemented iteratively (an explicit stack, not recursion) on purpose: this function walks
+ * the *entire*, untrusted payload structure, so a maliciously deep input must not be able to
+ * overflow the call stack while doing so -- see test/unit/deep-nesting-crash.test.ts. */
+export function scanPersonalDimensions(value: unknown, rootPath = ""): string[] {
   const violations: string[] = [];
-  if (Array.isArray(value)) {
-    value.forEach((item, i) => {
-      violations.push(...scanPersonalDimensions(item, `${pathStr}[${i}]`));
-    });
-    return violations;
-  }
-  if (value !== null && typeof value === "object") {
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      const here = pathStr ? `${pathStr}.${key}` : key;
-      if (FORBIDDEN_PERSONAL_DIMENSION_KEYS.has(key)) violations.push(here);
-      violations.push(...scanPersonalDimensions(val, here));
+  const stack: Array<{ node: unknown; path: string; depth: number }> = [
+    { node: value, path: rootPath, depth: 0 },
+  ];
+  while (stack.length > 0) {
+    const frame = stack.pop() as { node: unknown; path: string; depth: number };
+    if (frame.depth > HARD_DEPTH_CEILING) continue;
+    const { node, path, depth } = frame;
+    if (Array.isArray(node)) {
+      node.forEach((item, i) =>
+        stack.push({ node: item, path: `${path}[${i}]`, depth: depth + 1 }),
+      );
+      continue;
+    }
+    if (node !== null && typeof node === "object") {
+      for (const [key, val] of Object.entries(node as Record<string, unknown>)) {
+        const here = path ? `${path}.${key}` : key;
+        if (FORBIDDEN_PERSONAL_DIMENSION_KEYS.has(key)) violations.push(here);
+        stack.push({ node: val, path: here, depth: depth + 1 });
+      }
     }
   }
   return violations;

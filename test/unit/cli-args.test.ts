@@ -70,4 +70,41 @@ describe("parseArgs", () => {
   it("rejects an unrecognized flag", () => {
     assert.throws(() => parseArgs(["--nope"]), CliArgError);
   });
+
+  describe("--store-path path traversal (should-5 regression)", () => {
+    const base = ["--repo", "octo/example", "--allowed-login", "a"];
+
+    it("rejects a leading ../ segment", () => {
+      assert.throws(() => parseArgs([...base, "--store-path", "../evil.jsonl"]), CliArgError);
+    });
+
+    it("rejects a .. segment buried in the middle of the path", () => {
+      assert.throws(
+        () => parseArgs([...base, "--store-path", "data/../../../etc/passwd"]),
+        CliArgError,
+      );
+    });
+
+    it("rejects a .. segment using a backslash separator", () => {
+      assert.throws(
+        () => parseArgs([...base, "--store-path", "data\\..\\..\\evil.jsonl"]),
+        CliArgError,
+      );
+    });
+
+    it("accepts an ordinary relative path", () => {
+      const opts = parseArgs([...base, "--store-path", "data/store.jsonl"]);
+      assert.equal(opts.storePath, "data/store.jsonl");
+    });
+
+    it("accepts an absolute path (not a traversal -- an explicit, non-escaping choice)", () => {
+      const opts = parseArgs([...base, "--store-path", "/var/data/store.jsonl"]);
+      assert.equal(opts.storePath, "/var/data/store.jsonl");
+    });
+
+    it("does not false-positive on a filename that merely contains '..' as a substring, not a full segment", () => {
+      const opts = parseArgs([...base, "--store-path", "data/my..file.jsonl"]);
+      assert.equal(opts.storePath, "data/my..file.jsonl");
+    });
+  });
 });

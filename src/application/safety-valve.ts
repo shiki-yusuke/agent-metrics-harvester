@@ -41,7 +41,21 @@ export class SafetyValve {
   }
 
   check(rateLimitRemaining?: number): StopCheck {
-    if (this.opts.maxApiRequests !== undefined && this.requestCount >= this.opts.maxApiRequests) {
+    return this.previewCheck(0, rateLimitRemaining);
+  }
+
+  /** Like `check`, but evaluates as if `pendingRequests` more requests had already been
+   * recorded, without actually mutating `requestCount`. This exists specifically for a
+   * caller that is about to make several requests in a tight loop (GithubCommentSource's own
+   * pagination) and needs to enforce the budget *before each individual request*, not just
+   * once before the whole loop starts and once after it's already finished -- recording via
+   * `recordRequests` only at the very end of such a loop would let it blow through
+   * `--max-api-requests` for the entire loop's duration before the next check ever sees it. */
+  previewCheck(pendingRequests: number, rateLimitRemaining?: number): StopCheck {
+    if (
+      this.opts.maxApiRequests !== undefined &&
+      this.requestCount + pendingRequests >= this.opts.maxApiRequests
+    ) {
       return { stop: true, reason: "max_api_requests_exceeded" };
     }
     if (

@@ -97,6 +97,7 @@ describe("harvestRepository", () => {
     assert.equal(result.accepted, 1);
     assert.equal(result.rejected, 2); // untrusted author + repository_mismatch
     assert.equal(result.skippedSeen, 0);
+    assert.equal(result.changed, true);
 
     const stored = await store.readSnapshot(goodPayload.upsert_key);
     assert.ok(stored);
@@ -133,6 +134,48 @@ describe("harvestRepository", () => {
     );
     assert.equal(second.accepted, 0);
     assert.equal(second.skippedSeen, 1);
+    // should-6 regression: a batch of only already-seen comments still advances the cursor
+    // and therefore still calls commitBatch (a real store change) -- `changed` must reflect
+    // that even though accepted/rejected are both 0.
+    assert.equal(second.changed, true);
+  });
+
+  it("rejects a marker claiming change.type=pull_request when the comment actually appeared on a plain issue with the same number (must-4 regression)", async () => {
+    const store = await JsonlStore.open(path.join(dir, "pr-issue-mismatch.jsonl"));
+    const payload = makeTokenUsagePayload({ repository: "octo/example", changeNumber: 42 });
+    const comment = makeComment({
+      id: 1,
+      updatedAt: "2026-01-01T00:00:00Z",
+      body: markerTextFor(payload),
+      authorLogin: "trusted-bot[bot]",
+      issueNumber: 42,
+      isPullRequest: false, // a plain issue, not the PR the marker claims to be about
+    });
+
+    const source = new FixedCommentSource("octo/example", [page([comment])]);
+    const valve = new SafetyValve({});
+    const result = await harvestRepository(
+      { source, store, safetyValve: valve },
+      { lookbackDays: 1, auth: { allowedLogins: ["trusted-bot[bot]"] } },
+    );
+
+    assert.equal(result.accepted, 0);
+    assert.equal(result.rejected, 1);
+    assert.equal(await store.readSnapshot(payload.upsert_key), null);
+  });
+
+  it("changed is false when a fetch returns real (non-304) data but nothing in it changes anything", async () => {
+    const store = await JsonlStore.open(path.join(dir, "truly-nothing.jsonl"));
+    // notModified: false (a real 200 response), but zero comments and no etag change --
+    // nothing for the harvester to do, so no commitBatch call and changed must be false.
+    const source = new FixedCommentSource("octo/example", [page([])]);
+    const valve = new SafetyValve({});
+    const result = await harvestRepository(
+      { source, store, safetyValve: valve },
+      { lookbackDays: 1, auth: {} },
+    );
+    assert.equal(result.changed, false);
+    assert.equal(await store.readCheckpoint("octo/example"), null);
   });
 
   it("short-circuits on a 304 Not Modified response without touching the store", async () => {
@@ -146,6 +189,7 @@ describe("harvestRepository", () => {
       { lookbackDays: 1, auth: {} },
     );
     assert.equal(result.notModified, true);
+    assert.equal(result.changed, false);
     assert.equal(await store.readCheckpoint("octo/example"), null);
   });
 
@@ -160,5 +204,6 @@ describe("harvestRepository", () => {
     );
     assert.equal(result.stoppedReason, "max_api_requests_exceeded");
     assert.equal(result.requestsUsed, 0);
+    assert.equal(result.changed, false);
   });
 });

@@ -76,6 +76,11 @@ export interface RawComment {
   readonly authorLogin: string;
   readonly authorType: "User" | "Bot" | "Organization";
   readonly performedViaAppSlug?: string;
+  /** Whether the comment's `issueNumber` refers to a pull request rather than a plain issue.
+   * The repo-wide issue-comments endpoint returns both kinds indiscriminately; this is what
+   * lets a cross-check tell "marker posted on issue #42" apart from "marker posted on PR #42"
+   * even when a payload's own `change.number` happens to collide with an issue number. */
+  readonly isPullRequest: boolean;
 }
 
 export interface FetchCommentsParams {
@@ -86,7 +91,13 @@ export interface FetchCommentsParams {
 export interface FetchCommentsResult {
   readonly comments: readonly RawComment[];
   readonly notModified: boolean;
-  readonly newEtag?: string;
+  /** `undefined` = leave the checkpoint's stored etag as-is (nothing new to report, e.g. a
+   * 304). A `string` = cache this as the new etag. `null` = explicitly clear/invalidate any
+   * previously stored etag -- used whenever this fetch turned out to span more than one page,
+   * because a single page's ETag only ever describes that page's own bytes, never "nothing
+   * changed across the whole paginated result" (see comments-source.ts for why a page-1 304
+   * is unsafe to trust once pagination is possible). */
+  readonly newEtag?: string | null;
   readonly requestsUsed: number;
   readonly rateLimitRemaining?: number;
   /** True if this fetch stopped early (mid-pagination) because a safety valve tripped. The
@@ -124,6 +135,14 @@ export interface HarvestRepositoryResult {
   readonly requestsUsed: number;
   readonly stoppedReason?: string;
   readonly notModified: boolean;
+  /** True exactly when this call invoked `store.commitBatch(...)` -- i.e. the store's on-disk
+   * state (and, for the JSONL backend, its append-only journal) actually changed this run.
+   * This can be true even when `accepted`/`rejected` are both 0: a batch made only of
+   * already-seen comments (cursor advancing past them again) or a bare ETag update still
+   * results in a real commit. Consumers that need to know "did anything land in the store"
+   * (e.g. the GitHub Action deciding whether to push the state branch) must read this field,
+   * not infer it from `accepted + rejected`. */
+  readonly changed: boolean;
 }
 
 /** Thrown when a repository has no checkpoint yet and the caller did not supply

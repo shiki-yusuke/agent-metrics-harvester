@@ -21,6 +21,22 @@ export interface CliOptions {
 
 export class CliArgError extends Error {}
 
+/** Rejects a `..` path segment anywhere in `storePath` (leading, trailing, or in the middle;
+ * both `/` and `\` separators). The GitHub Action wrapper builds its actual on-disk path by
+ * string-concatenating `${STATE_DIR}/${STORE_PATH}` (action/run-harvest.sh) -- a `..` segment
+ * there would let `store-path` (an Action *input*, which a workflow can compute from
+ * untrusted data) write outside the checked-out state branch's directory entirely. Absolute
+ * paths are intentionally still allowed: a direct CLI user pointing at e.g. `/data/store.jsonl`
+ * is making an explicit, non-escaping choice, not traversing out of anything. */
+function assertNoPathTraversal(storePath: string): void {
+  const segments = storePath.split(/[/\\]/);
+  if (segments.some((segment) => segment === "..")) {
+    throw new CliArgError(
+      `--store-path must not contain a ".." segment (got "${storePath}") -- this could write outside the intended store directory`,
+    );
+  }
+}
+
 function requireValue(argv: readonly string[], i: number, flag: string): string {
   const value = argv[i + 1];
   if (value === undefined) throw new CliArgError(`${flag} requires a value`);
@@ -114,6 +130,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
 
   if (repos.length === 0) throw new CliArgError("at least one --repo <owner/repo> is required");
   if (!storePath) throw new CliArgError("--store-path is required");
+  assertNoPathTraversal(storePath);
   if (allowedLogins.length === 0 && allowedAppSlugs.length === 0) {
     throw new CliArgError(
       "at least one --allowed-login or --allowed-app-slug is required -- a harvester with no " +
