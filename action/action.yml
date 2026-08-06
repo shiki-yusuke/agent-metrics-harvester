@@ -1,0 +1,123 @@
+name: "agent-metrics-harvester"
+description: >-
+  Collects agent-metrics/v1 token/cost markers hidden in GitHub PR/issue
+  comments into a JSONL or SQLite store, keeping the store and its cursor on a
+  dedicated orphan state branch. This wrapper only checks out state, runs the
+  harvester CLI, and commits state back -- all collection/accept/reject logic
+  lives in the CLI itself, not here.
+branding:
+  icon: "download-cloud"
+  color: "gray-dark"
+
+inputs:
+  repos:
+    description: "Newline-separated list of owner/repo to harvest."
+    required: true
+  store:
+    description: '"jsonl" (default) or "sqlite".'
+    default: "jsonl"
+  store-path:
+    description: "Path of the store file, relative to the state branch's root."
+    default: "agent-metrics-store.jsonl"
+  state-repository:
+    description: >-
+      owner/repo holding the state branch. Defaults to the current repository.
+      Use a dedicated private repository here if any repository in `repos` is
+      private (see README's "Private repositories" section) -- state must not
+      leak into a more widely-readable repository than its source data.
+    default: ${{ github.repository }}
+  state-branch:
+    description: "Orphan branch that holds only the store file and its commit history."
+    default: "agent-metrics-state"
+  allowed-logins:
+    description: "Newline-separated list of trusted comment-author logins."
+    default: ""
+  allowed-app-slugs:
+    description: "Newline-separated list of trusted GitHub App slugs."
+    default: ""
+  initial-since:
+    description: "ISO 8601 timestamp. Required on a repository's first run if lookback-days is not set."
+    default: ""
+  lookback-days:
+    description: "Integer. Required on a repository's first run if initial-since is not set."
+    default: ""
+  max-api-requests:
+    description: "Safety valve: stop after this many GitHub API requests in one run."
+    default: "500"
+  rate-limit-floor:
+    description: "Safety valve: stop once x-ratelimit-remaining reaches this value."
+    default: "200"
+  max-runtime-seconds:
+    description: "Safety valve: stop after this many seconds, regardless of remaining backlog."
+    default: "240"
+  github-token:
+    description: >-
+      Token with read access to comments on every repository in `repos` and
+      read/write access to `state-repository`. A GitHub App installation
+      token is recommended; a fine-grained PAT is the second choice. The
+      default `github.token` only ever covers the current repository, so it
+      is unsuitable for harvesting any other repository.
+    default: ${{ github.token }}
+
+outputs:
+  changed:
+    description: '"true" if this run accepted or rejected at least one marker; "false" if nothing changed (in which case nothing was committed/pushed).'
+    value: ${{ steps.harvest.outputs.changed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare state branch checkout
+      shell: bash
+      run: "${{ github.action_path }}/action/prepare-state.sh"
+      env:
+        STATE_DIR: agent-metrics-state
+        STATE_REPOSITORY: ${{ inputs.state-repository }}
+        STATE_BRANCH: ${{ inputs.state-branch }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install and build the harvester CLI
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npm ci
+        npm run build
+
+    - name: Run harvest
+      id: harvest
+      shell: bash
+      run: "${{ github.action_path }}/action/run-harvest.sh"
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        STATE_DIR: agent-metrics-state
+        REPOS: ${{ inputs.repos }}
+        STORE_KIND: ${{ inputs.store }}
+        STORE_PATH: ${{ inputs.store-path }}
+        ALLOWED_LOGINS: ${{ inputs.allowed-logins }}
+        ALLOWED_APP_SLUGS: ${{ inputs.allowed-app-slugs }}
+        INITIAL_SINCE: ${{ inputs.initial-since }}
+        LOOKBACK_DAYS: ${{ inputs.lookback-days }}
+        MAX_API_REQUESTS: ${{ inputs.max-api-requests }}
+        RATE_LIMIT_FLOOR: ${{ inputs.rate-limit-floor }}
+        MAX_RUNTIME_SECONDS: ${{ inputs.max-runtime-seconds }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+
+    - name: Commit and push state (only if changed)
+      shell: bash
+      run: "${{ github.action_path }}/action/commit-state.sh"
+      env:
+        STATE_DIR: agent-metrics-state
+        STATE_BRANCH: ${{ inputs.state-branch }}
+
+    - name: Fail if the harvester reported per-repository errors
+      shell: bash
+      run: |
+        if [ "${{ steps.harvest.outputs.has-errors }}" = "true" ]; then
+          echo "agent-metrics-harvester: one or more repositories errored this run (see the 'Run harvest' step's log above). State for repositories that succeeded has already been committed." >&2
+          exit 1
+        fi
