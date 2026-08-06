@@ -47,6 +47,22 @@ function requireValue(argv: readonly string[], i: number, flag: string): string 
   return value;
 }
 
+/** Rejects anything `Number.parseInt` would silently turn into `NaN` (e.g. "abc", "") or a
+ * negative number -- none of --max-api-requests/--rate-limit-floor/--max-runtime-seconds/
+ * --min-sample-size have a sensible negative or non-numeric value, and a silently-NaN safety
+ * valve would fail open (every `previewCheck` comparison against NaN is false) rather than
+ * failing closed. */
+function parseNonNegativeInt(value: string, flag: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new ReportArgError(`${flag} must be a non-negative integer, got "${value}"`);
+  }
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new ReportArgError(`${flag} must be a non-negative integer, got "${value}"`);
+  }
+  return n;
+}
+
 export function parseReportArgs(argv: readonly string[]): ReportOptions {
   const command = argv[0];
   if (command !== "cost-per-pr") {
@@ -143,19 +159,19 @@ export function parseReportArgs(argv: readonly string[]): ReportOptions {
         break;
       }
       case "--max-api-requests":
-        maxApiRequests = Number.parseInt(requireValue(argv, i, flag), 10);
+        maxApiRequests = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--rate-limit-floor":
-        rateLimitFloor = Number.parseInt(requireValue(argv, i, flag), 10);
+        rateLimitFloor = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--max-runtime-seconds":
-        maxRuntimeSeconds = Number.parseInt(requireValue(argv, i, flag), 10);
+        maxRuntimeSeconds = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--min-sample-size":
-        minSampleSize = Number.parseInt(requireValue(argv, i, flag), 10);
+        minSampleSize = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--github-token":

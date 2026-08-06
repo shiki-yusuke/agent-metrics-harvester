@@ -95,4 +95,53 @@ describe("parseReportArgs", () => {
   it("rejects an unrecognized flag", () => {
     assert.throws(() => parseReportArgs([...BASE, "--author", "someone"]), ReportArgError);
   });
+
+  describe("should-1 regression: numeric flags reject NaN and negative values", () => {
+    const numericFlags = [
+      "--max-api-requests",
+      "--rate-limit-floor",
+      "--max-runtime-seconds",
+      "--min-sample-size",
+    ];
+
+    for (const flag of numericFlags) {
+      it(`${flag} rejects a non-numeric value`, () => {
+        assert.throws(() => parseReportArgs([...BASE, flag, "abc"]), ReportArgError);
+      });
+
+      it(`${flag} rejects a negative value`, () => {
+        assert.throws(() => parseReportArgs([...BASE, flag, "-1"]), ReportArgError);
+      });
+
+      it(`${flag} rejects an empty value`, () => {
+        assert.throws(() => parseReportArgs([...BASE, flag, ""]), ReportArgError);
+      });
+
+      it(`${flag} rejects a decimal value`, () => {
+        assert.throws(() => parseReportArgs([...BASE, flag, "1.5"]), ReportArgError);
+      });
+
+      it(`${flag} accepts zero`, () => {
+        const opts = parseReportArgs([...BASE, flag, "0"]);
+        const key = {
+          "--max-api-requests": "maxApiRequests",
+          "--rate-limit-floor": "rateLimitFloor",
+          "--max-runtime-seconds": "maxRuntimeSeconds",
+          "--min-sample-size": "minSampleSize",
+        }[flag] as keyof typeof opts;
+        assert.equal(opts[key], 0);
+      });
+
+      it(`${flag} accepts a positive integer`, () => {
+        const opts = parseReportArgs([...BASE, flag, "42"]);
+        const key = {
+          "--max-api-requests": "maxApiRequests",
+          "--rate-limit-floor": "rateLimitFloor",
+          "--max-runtime-seconds": "maxRuntimeSeconds",
+          "--min-sample-size": "minSampleSize",
+        }[flag] as keyof typeof opts;
+        assert.equal(opts[key], 42);
+      });
+    }
+  });
 });
