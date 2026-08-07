@@ -69,11 +69,20 @@ export function makeTokenUsagePayload(opts: MakePayloadOptions = {}): TokenUsage
   };
 }
 
-export function markerTextFor(payload: unknown): string {
-  const bytes = Buffer.from(JSON.stringify(payload), "utf-8");
+/** Builds marker text from already-serialized JSON bytes. Use this instead of `markerTextFor`
+ * whenever the payload has attacker-controlled (potentially unbounded) nesting depth:
+ * `markerTextFor` calls JSON.stringify, a recursive V8 built-in that can itself overflow the
+ * call stack on a sufficiently deep object -- before the marker is even handed to the code
+ * under test. See test/unit/deep-nesting-crash.test.ts, which builds such a payload's JSON
+ * text directly via iteration and passes the resulting bytes here. */
+export function markerTextForBytes(bytes: Buffer): string {
   const b64 = bytes.toString("base64");
   const sha = sha256Hex(bytes);
   return `<!-- agent-metrics:v1 payload_b64=${b64} sha256=${sha} -->`;
+}
+
+export function markerTextFor(payload: unknown): string {
+  return markerTextForBytes(Buffer.from(JSON.stringify(payload), "utf-8"));
 }
 
 export function shaOfPayload(payload: unknown): string {
