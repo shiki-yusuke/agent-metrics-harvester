@@ -50,7 +50,7 @@ agent-metrics-report        aggregate reporting (cost per merged PR)
   frozen at tag
   [`agent-metrics-v1.0.0`](https://github.com/shiki-yusuke/ai-agent-skills-playbook/releases/tag/agent-metrics-v1.0.0).
   This repository is a *reference* harvester, not the protocol owner.
-- [`spec-lane`](https://github.com/shiki-yusuke/lane) is a *reference
+- [`spec-lane`](https://github.com/shiki-yusuke/spec-lane) is a *reference
   emitter* for that same protocol (`lane emit-metrics`) — one possible
   producer of the markers this harvester consumes. Nothing here is
   spec-lane-specific: any emitter that posts a conformant marker works.
