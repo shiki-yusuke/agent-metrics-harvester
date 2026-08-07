@@ -19,6 +19,47 @@ that is the normative contract; this repository vendors a copy for
 conformance testing (see [`test/contract/vendor/UPSTREAM.md`](test/contract/vendor/UPSTREAM.md))
 but does not redefine it.
 
+## Where this fits
+
+This repository is one stage in a public reference pipeline. Each repository
+in it owns exactly one responsibility, and none of them duplicate another's:
+
+```
+agent-cost                  local Claude Code / Codex log measurement
+        │
+        ▼
+spec-lane                   delivery control, activity attribution, and
+                             agent-metrics:v1 payload emission
+        │
+        ▼
+agent-metrics:v1            hidden marker on a GitHub PR/issue comment
+        │
+        ▼
+agent-metrics-harvester     trust check, collection, storage   <- this repo
+        │
+        ▼
+JSONL / SQLite store
+        │
+        ▼
+agent-metrics-report        aggregate reporting (cost per merged PR)
+```
+
+- The `agent-metrics:v1` protocol itself — the marker format, upsert-key
+  recipe, and conformance fixtures — is normative in
+  [`ai-agent-skills-playbook`](https://github.com/shiki-yusuke/ai-agent-skills-playbook),
+  frozen at tag
+  [`agent-metrics-v1.0.0`](https://github.com/shiki-yusuke/ai-agent-skills-playbook/releases/tag/agent-metrics-v1.0.0).
+  This repository is a *reference* harvester, not the protocol owner.
+- [`spec-lane`](https://github.com/shiki-yusuke/lane) is a *reference
+  emitter* for that same protocol (`lane emit-metrics`) — one possible
+  producer of the markers this harvester consumes. Nothing here is
+  spec-lane-specific: any emitter that posts a conformant marker works.
+- This repository owns collection and storage only. It does not measure
+  token usage itself (that's `agent-cost`, run locally by an emitter), and it
+  does not decide what a delivery workflow should attribute a change to
+  (that's `spec-lane`). It also does not aggregate across periods or teams —
+  that is `agent-metrics-report`'s job, described [below](#agent-metrics-report-cost-per-merged-pr).
+
 ## What it does
 
 1. An emitter (e.g. a delivery pipeline, a review bot) posts a PR/issue
@@ -42,15 +83,24 @@ deliberate — see the trust model below.
 
 ## Install
 
+This package is **not published to the npm registry** (`package.json` is
+`private: true` on purpose) — it is distributed as source in this public
+repository, plus the GitHub Action wrapper described below. To run either
+binary, clone this repository and build from source:
+
 ```bash
+git clone https://github.com/shiki-yusuke/agent-metrics-harvester.git
+cd agent-metrics-harvester
 npm install
 npm run build
 ```
 
 This produces `dist/src/cli/main.js` and `dist/src/cli/report-main.js`,
-runnable directly with Node, plus two `bin` entries
-(`agent-metrics-harvester`, `agent-metrics-report`) if you install this
-package globally or via `npx`.
+runnable directly with Node. The two `bin` entries
+(`agent-metrics-harvester`, `agent-metrics-report`) resolve if you `npm link`
+this checkout locally — there is no `npm install -g` / `npx` path from the
+registry, since nothing is published there. Most CI usage doesn't need this
+step at all: see [GitHub Action](#github-action) below.
 
 ## CLI usage
 
@@ -367,6 +417,14 @@ is restricted to `{repository, team, period}` by construction (there is no
 generic `--group-by` flag, and no `--author`/`--reviewer` filter exists to
 even try).
 
+Withholding a headline number is treated as a feature, not a gap to fill in
+later: when the merged-PR sample in scope is too small to be meaningful
+(`insufficient_sample`), the derived headline is `null` rather than a number
+computed from too little data. The point of this report is not "always
+produce a number" — it's "never produce a number that would mislead." See
+the code and tests under `src/report/` and `test/unit/cost-per-pr*` for the
+exact threshold and precedence rules.
+
 ### A/B comparison and its correlation caveat
 
 `--compare-month`/`--compare-week` compares the primary period (`--month`/
@@ -400,6 +458,25 @@ that metadata (and therefore the headline `merged_pr_count`) as
 `--metadata-mode cache-only` never touches the network at all; a fully-
 covered *past* period (never a still-open current one) is served from cache
 without any request even in `auto` mode.
+
+## End-to-end validation
+
+Beyond this repository's own test suite, the public reference pipeline has
+been exercised end to end on real GitHub infrastructure: a `spec-lane`
+marker was posted to an actual PR comment, collected by this harvester,
+persisted to its store, and re-fetched through the unchanged/idempotent
+(ETag 304) path on a subsequent run. This is one live run, not a load test
+or a claim of broad production usage — it demonstrates the wiring across
+repositories, not scale or long-term reliability.
+
+Separately, this repository's own CI runs the full suite (typecheck, lint,
+`node --test`) on `ubuntu-latest` with Node 22, and is green. (An earlier
+Node 22/Linux-specific `RangeError` in the deep-nesting-payload guard —
+never observed on this project's macOS/Node 24 development environment —
+was root-caused and fixed with a stack-constrained local reproduction; see
+the CI history for detail.) Green CI here is a statement about this
+repository's own correctness on its supported runtime, not a claim that the
+whole multi-repository pipeline is validated at any particular scale.
 
 ## v1 scope
 
