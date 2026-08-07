@@ -6,7 +6,7 @@
 
 import { computeUpsertKey } from "./canonical.js";
 import { decodeEnvelopeFields, parseMarker } from "./envelope.js";
-import { checkLimits } from "./limits.js";
+import { checkDepth, checkLimits } from "./limits.js";
 import { scanPersonalDimensions } from "./personal-dimension.js";
 import { validateEnvelope, validateTokenUsagePayload } from "./schema.js";
 import type {
@@ -116,6 +116,14 @@ export function decodeMarker(commentBody: string): DecodeOutcome {
 /** Same pipeline for a bare (non-marker-wrapped) JSON payload -- used for the "payload"-kind
  * conformance fixtures, and reusable anywhere a payload is already in hand. */
 export function decodePayloadObject(payload: unknown): DecodeOutcome {
+  // Depth must be checked BEFORE anything below stringifies `payload`: unlike checkLimits'
+  // own depth check (iterative/crash-safe), JSON.stringify is a recursive V8 built-in and can
+  // itself overflow the call stack on an attacker-controlled arbitrarily-deep object -- this
+  // used to happen right here, computing rawByteLength, before checkPayload's (safe) depth
+  // check ever ran. See test/unit/deep-nesting-crash.test.ts.
+  const depthViolation = checkDepth(payload);
+  if (depthViolation) return { kind: "rejected", reasons: [depthViolation] };
+
   const rawByteLength = Buffer.byteLength(JSON.stringify(payload), "utf-8");
   const reasons = checkPayload(payload, rawByteLength);
   if (reasons.length > 0) return { kind: "rejected", reasons };

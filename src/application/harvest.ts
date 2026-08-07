@@ -115,121 +115,146 @@ export async function harvestRepository(
   let lastProcessed: RawComment | null = null;
 
   for (const comment of ordered) {
-    const parsed = parseMarker(comment.body);
-    if (parsed.ignored) {
-      ignored++;
-      continue;
-    }
+    // Final defense (in addition to decode.ts's own crash-safe depth check): wraps this
+    // comment's entire processing so that ANY unforeseen exception -- not just the deep-nesting
+    // RangeError this was written to backstop, e.g. a malformed comment object whose `body`
+    // getter throws -- rejects only this one comment instead of propagating out of the loop and
+    // poisoning (aborting before commitBatch) every other comment in the batch. Ideal outcome
+    // for a hostile payload is still a clean payload_too_deep rejection from decode.ts; this
+    // catch is what guarantees "does not crash" even for a failure mode nobody anticipated. See
+    // test/unit/deep-nesting-crash.test.ts.
+    try {
+      const parsed = parseMarker(comment.body);
+      if (parsed.ignored) {
+        ignored++;
+        continue;
+      }
 
-    const declaredSha = parsed.fields.sha256;
-    if (declaredSha && (await store.hasSeenMarker(repository, comment.id, declaredSha))) {
-      // Cheap skip (protocol doc section 2): this exact (repository, commentId, verified sha)
-      // triple was already parsed and stored (or rejected-post-verification) by a previous
-      // run's commitBatch -- re-parsing/re-validating it again would reach the same verdict.
-      // The watermark still advances past it below via `lastProcessed`.
-      skippedSeen++;
-      lastProcessed = comment;
-      continue;
-    }
+      const declaredSha = parsed.fields.sha256;
+      if (declaredSha && (await store.hasSeenMarker(repository, comment.id, declaredSha))) {
+        // Cheap skip (protocol doc section 2): this exact (repository, commentId, verified sha)
+        // triple was already parsed and stored (or rejected-post-verification) by a previous
+        // run's commitBatch -- re-parsing/re-validating it again would reach the same verdict.
+        // The watermark still advances past it below via `lastProcessed`.
+        skippedSeen++;
+        lastProcessed = comment;
+        continue;
+      }
 
-    const outcome = decodeMarker(comment.body);
+      const outcome = decodeMarker(comment.body);
 
-    if (outcome.kind === "ignored") {
-      ignored++;
-      lastProcessed = comment;
-      continue;
-    }
+      if (outcome.kind === "ignored") {
+        ignored++;
+        lastProcessed = comment;
+        continue;
+      }
 
-    if (outcome.kind === "rejected") {
-      rejected++;
-      const recordableSha = isEnvelopeLevelFailure(outcome.reasons) ? undefined : declaredSha;
-      rejections.push({
+      if (outcome.kind === "rejected") {
+        rejected++;
+        const recordableSha = isEnvelopeLevelFailure(outcome.reasons) ? undefined : declaredSha;
+        rejections.push({
+          repository,
+          commentId: comment.id,
+          commentUrl: comment.htmlUrl,
+          markerSha: recordableSha,
+          reasons: outcome.reasons,
+          detectedAt: now().toISOString(),
+        });
+        lastProcessed = comment;
+        continue;
+      }
+
+      // Protocol-level checks passed. Trust model (protocol doc section 7) runs next --
+      // independently of anything the payload itself claims.
+      if (!isTrustedAuthor(comment, opts.auth)) {
+        rejected++;
+        rejections.push({
+          repository,
+          commentId: comment.id,
+          commentUrl: comment.htmlUrl,
+          markerSha: declaredSha,
+          reasons: [{ code: "author_not_trusted", detail: `login=${comment.authorLogin}` }],
+          detectedAt: now().toISOString(),
+        });
+        lastProcessed = comment;
+        continue;
+      }
+
+      const crossCheck = crossCheckRepositoryAndChange(outcome.payload, {
+        repositoryFullName: repository,
+        comment,
+      });
+      if (!crossCheck.ok) {
+        rejected++;
+        rejections.push({
+          repository,
+          commentId: comment.id,
+          commentUrl: comment.htmlUrl,
+          markerSha: declaredSha,
+          reasons: [
+            {
+              code: crossCheck.code as NonNullable<typeof crossCheck.code>,
+              detail: crossCheck.detail,
+            },
+          ],
+          detectedAt: now().toISOString(),
+        });
+        lastProcessed = comment;
+        continue;
+      }
+
+      // Goodhart re-check: a second, independent personal-dimension scan right before this
+      // record is queued for storage (spec section 4 -- "decode 後・store 前に Goodhart
+      // 再検査（emitter と独立の二重目）"). checkPayload already ran this scan inside
+      // decodeMarker; this call site exists specifically so that invariant survives even if a
+      // future refactor of decode.ts's internals were to drop it there.
+      const goodhartViolations = scanPersonalDimensions(outcome.payload);
+      if (goodhartViolations.length > 0) {
+        rejected++;
+        rejections.push({
+          repository,
+          commentId: comment.id,
+          commentUrl: comment.htmlUrl,
+          markerSha: declaredSha,
+          reasons: goodhartViolations.map((v) => ({
+            code: "personal_dimension_forbidden_key" as const,
+            detail: v,
+          })),
+          detectedAt: now().toISOString(),
+        });
+        lastProcessed = comment;
+        continue;
+      }
+
+      const normalized = normalizeTokenUsagePayload(outcome.payload);
+      accepted++;
+      // Last-write-wins within this batch: `ordered` is ascending by (updated_at, id), so a
+      // later correction for the same upsert_key naturally overwrites an earlier one here.
+      snapshotsByKey.set(normalized.upsert_key, {
+        upsertKey: normalized.upsert_key,
         repository,
-        commentId: comment.id,
-        commentUrl: comment.htmlUrl,
-        markerSha: recordableSha,
-        reasons: outcome.reasons,
-        detectedAt: now().toISOString(),
+        payload: normalized,
+        sourceCommentId: comment.id,
+        sourceUpdatedAt: comment.updatedAt,
+        markerSha: declaredSha ?? "",
       });
       lastProcessed = comment;
-      continue;
-    }
-
-    // Protocol-level checks passed. Trust model (protocol doc section 7) runs next --
-    // independently of anything the payload itself claims.
-    if (!isTrustedAuthor(comment, opts.auth)) {
+    } catch (err) {
+      // declaredSha is not in scope here on purpose: the exception may have been thrown before
+      // it was ever computed (e.g. while merely reading comment.body), so there is no sha this
+      // rejection could honestly claim to have verified.
       rejected++;
       rejections.push({
         repository,
         commentId: comment.id,
         commentUrl: comment.htmlUrl,
-        markerSha: declaredSha,
-        reasons: [{ code: "author_not_trusted", detail: `login=${comment.authorLogin}` }],
-        detectedAt: now().toISOString(),
-      });
-      lastProcessed = comment;
-      continue;
-    }
-
-    const crossCheck = crossCheckRepositoryAndChange(outcome.payload, {
-      repositoryFullName: repository,
-      comment,
-    });
-    if (!crossCheck.ok) {
-      rejected++;
-      rejections.push({
-        repository,
-        commentId: comment.id,
-        commentUrl: comment.htmlUrl,
-        markerSha: declaredSha,
         reasons: [
-          {
-            code: crossCheck.code as NonNullable<typeof crossCheck.code>,
-            detail: crossCheck.detail,
-          },
+          { code: "internal_error", detail: err instanceof Error ? err.message : String(err) },
         ],
         detectedAt: now().toISOString(),
       });
       lastProcessed = comment;
-      continue;
     }
-
-    // Goodhart re-check: a second, independent personal-dimension scan right before this
-    // record is queued for storage (spec section 4 -- "decode 後・store 前に Goodhart
-    // 再検査（emitter と独立の二重目）"). checkPayload already ran this scan inside
-    // decodeMarker; this call site exists specifically so that invariant survives even if a
-    // future refactor of decode.ts's internals were to drop it there.
-    const goodhartViolations = scanPersonalDimensions(outcome.payload);
-    if (goodhartViolations.length > 0) {
-      rejected++;
-      rejections.push({
-        repository,
-        commentId: comment.id,
-        commentUrl: comment.htmlUrl,
-        markerSha: declaredSha,
-        reasons: goodhartViolations.map((v) => ({
-          code: "personal_dimension_forbidden_key" as const,
-          detail: v,
-        })),
-        detectedAt: now().toISOString(),
-      });
-      lastProcessed = comment;
-      continue;
-    }
-
-    const normalized = normalizeTokenUsagePayload(outcome.payload);
-    accepted++;
-    // Last-write-wins within this batch: `ordered` is ascending by (updated_at, id), so a
-    // later correction for the same upsert_key naturally overwrites an earlier one here.
-    snapshotsByKey.set(normalized.upsert_key, {
-      upsertKey: normalized.upsert_key,
-      repository,
-      payload: normalized,
-      sourceCommentId: comment.id,
-      sourceUpdatedAt: comment.updatedAt,
-      markerSha: declaredSha ?? "",
-    });
-    lastProcessed = comment;
   }
 
   // null means "explicitly clear" (comments-source.ts sets this whenever a fetch spanned more

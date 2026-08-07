@@ -93,8 +93,11 @@ export interface TokenUsagePayload extends EnvelopeCommon {
 
 /** Reason codes a harvester can attach to a rejected/ignored comment. Names match the
  * `reason_code` values in test/contract/vendor/fixtures/expected-results.json exactly, plus
- * additional codes this implementation needs beyond what the fixture set exercises (trust-model
- * checks that are transport-level, not payload-level -- see protocol doc section 7). */
+ * additional codes this implementation needs beyond what the fixture set exercises: trust-model
+ * checks that are transport-level, not payload-level (protocol doc section 7), and
+ * "internal_error" -- a last-resort backstop (application/harvest.ts) for an unforeseen
+ * exception while processing one comment, so that comment is rejected instead of the exception
+ * propagating and poisoning the rest of its batch. */
 export type RejectionCode =
   | "envelope_ignored_not_agent_metrics"
   | "envelope_fields_missing"
@@ -110,7 +113,8 @@ export type RejectionCode =
   | "author_not_trusted"
   | "repository_mismatch"
   | "change_mismatch"
-  | "change_type_mismatch";
+  | "change_type_mismatch"
+  | "internal_error";
 
 export interface RejectionReason {
   readonly code: RejectionCode;

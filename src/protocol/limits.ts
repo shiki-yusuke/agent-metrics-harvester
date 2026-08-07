@@ -31,6 +31,16 @@ function exceedsMaxDepth(root: unknown): boolean {
   return false;
 }
 
+// Exposed standalone (not just folded into checkLimits below) so a caller that must guard a
+// payload against attacker-controlled depth *before* doing anything else with it -- in
+// particular before JSON.stringify, itself a recursive, depth-unsafe V8 built-in -- can run
+// only this crash-safe check first, without needing rawByteLength computed up front. See
+// decode.ts's decodePayloadObject and test/unit/deep-nesting-crash.test.ts.
+export function checkDepth(payload: unknown): LimitViolation | undefined {
+  if (!exceedsMaxDepth(payload)) return undefined;
+  return { code: "payload_too_deep", detail: `nesting exceeds max depth ${MAX_DEPTH}` };
+}
+
 export function checkLimits(payload: unknown, rawByteLength: number): LimitViolation[] {
   const violations: LimitViolation[] = [];
   if (rawByteLength > MAX_PAYLOAD_BYTES) {
@@ -39,8 +49,7 @@ export function checkLimits(payload: unknown, rawByteLength: number): LimitViola
       detail: `${rawByteLength} bytes > ${MAX_PAYLOAD_BYTES}`,
     });
   }
-  if (exceedsMaxDepth(payload)) {
-    violations.push({ code: "payload_too_deep", detail: `nesting exceeds max depth ${MAX_DEPTH}` });
-  }
+  const depthViolation = checkDepth(payload);
+  if (depthViolation) violations.push(depthViolation);
   return violations;
 }
