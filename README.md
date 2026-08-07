@@ -197,7 +197,9 @@ jobs:
 The action is a thin wrapper: it checks out the state branch, builds and
 runs the CLI (all collection/accept/reject logic lives there, not in this
 YAML), and commits the state branch back — **only if something changed**. See
-[`action/action.yml`](action/action.yml) and the scripts next to it.
+[`action.yml`](action.yml) (at the repository root, so `uses:
+shiki-yusuke/agent-metrics-harvester@v1` resolves) and the scripts it calls
+under [`action/`](action).
 
 ### Scheduling
 
@@ -300,8 +302,10 @@ src/
                   never touches Store or the harvest CLI's contract.
   cli/            argument parsing and wiring for both binaries -- no
                   protocol/store/report logic of its own.
-action/           GitHub Action wrapper: checkout/state-restore -> CLI ->
-                  commit, and nothing else.
+action/           Scripts the Action wrapper calls: checkout/state-restore ->
+                  CLI -> commit, and nothing else. action.yml itself lives at
+                  the repository root (required for `uses: owner/repo@ref`
+                  to resolve), not in this directory.
 test/contract/    conformance against the vendored agent-metrics/v1 fixtures.
 test/unit/        crash injection (both stores), store parity (JSONL vs
                   SQLite under an identical operation sequence), the
