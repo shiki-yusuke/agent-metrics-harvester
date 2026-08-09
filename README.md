@@ -463,6 +463,94 @@ that metadata (and therefore the headline `merged_pr_count`) as
 covered *past* period (never a still-open current one) is served from cache
 without any request even in `auto` mode.
 
+## Dashboard
+
+`agent-metrics-dashboard` renders one static, zero-dependency HTML page —
+five panels (cost, forecast calibration, attribution, freshness, model
+cohort), CSS bars instead of a chart library, no CDN, light/dark via
+`prefers-color-scheme` — from this repository's own `metrics-data` branch.
+`.github/workflows/dashboard.yml` is the primary runner (daily schedule +
+`workflow_dispatch`); a local cron is never the system of record.
+
+### Data flow
+
+```
+watched repos' PR/issue comments
+        |
+        v   agent-metrics-harvester (root action.yml, unmodified)
+metrics-data branch: agent-metrics-store.jsonl
+        |
+        |     local lane observations (attribution audit / calibration)
+        |            |
+        |            v  scripts/push-aggregate.mjs (validate + project + reject)
+        v            |
+metrics-data branch: aggregates/YYYY-MM.jsonl <----------+
+        |
+        v   agent-metrics-dashboard (src/dashboard)
+dashboard-dist/index.html
+        |
+        v   actions/upload-pages-artifact + actions/deploy-pages
+GitHub Pages
+```
+
+The harvester's store and the aggregates directory live on the same
+`metrics-data` branch but are written by two independent paths: the
+harvest CLI's own `commitBatch` (store), and `scripts/push-aggregate.mjs`
+(aggregates, plus a `heartbeat` line the workflow appends after every
+run). Both dashboard inputs are read-only from the generator's point of
+view — it never writes back to `metrics-data`.
+
+### Sanitized by construction, not by convention
+
+`aggregates/*.jsonl` never holds a raw intent id, a session id, or a task
+name — only counts, ratios, and digests
+(`intent_digest`/`cohort_digest`, both pre-hashed by the caller before
+`push-aggregate.mjs` ever sees them). `scripts/push-aggregate.mjs` runs
+the personal-dimension scan (the same
+`FORBIDDEN_PERSONAL_DIMENSION_KEYS` protocol/personal-dimension.ts already
+enforces on harvested payloads) over every input **before** touching git
+at all — a violation rejects the whole line, no orphan branch is created,
+nothing is pushed. Any field the target `kind` doesn't recognize is
+silently dropped rather than passed through. The dashboard generator
+applies no *additional* sanitization on read — it trusts the write-side
+gate, and `test/unit/dashboard-render.test.ts` machine-scans the rendered
+HTML for the same forbidden keys as a defense-in-depth check.
+
+The dashboard never claims a causal effect (spec: "因果を主張しない"). The
+model-cohort panel always carries a fixed non-comparability caveat, the
+forecast-calibration panel reports `insufficient_data` rather than
+computing a confidence interval below the sample floor, and every panel
+shows a real N and missing-rate — a denominator that doesn't exist renders
+as null, never as a fabricated zero.
+
+### Required secrets and one-time manual setup
+
+None of the following are configured by this repository's code — they
+are deliberately manual, human decisions:
+
+- **Enable GitHub Pages** (one-time): repository Settings → Pages → Build
+  and deployment → Source → **GitHub Actions**. Until this is set,
+  `actions/deploy-pages` in `dashboard.yml` will fail even though the
+  `build` job succeeds.
+- **`HARVESTER_TOKEN` secret**: a token with read access to every
+  repository in `dashboard.yml`'s `WATCHED_REPOS` (which, unlike the
+  harvester's own single-repo default, spans repositories beyond this
+  one) and read/write access to this repository's `metrics-data` branch —
+  see [Authentication and token scope](#authentication-and-token-scope).
+  Without it the harvest step can only ever see this repository's own
+  comments.
+- **`HEALTHCHECK_URL` secret** (optional, but recommended): a dead-man
+  ping URL from a service like healthchecks.io. `dashboard.yml`'s
+  `notify` job `curl`s it only after a full success (harvest → dashboard
+  → Pages deploy). Its *absence as a secret* just logs
+  `::warning::dead-man ping unset` and skips — the workflow does not fail
+  because of a missing ping URL. Its purpose is the opposite direction: if
+  the scheduled workflow itself stops running (a broken cron expression,
+  a disabled workflow, an org-wide Actions outage), no ping ever arrives,
+  and the monitoring service itself is what notices the silence — nothing
+  internal to a workflow that never runs could ever detect that on its
+  own.
+
 ## End-to-end validation
 
 Beyond this repository's own test suite, the public reference pipeline has
@@ -485,10 +573,12 @@ whole multi-repository pipeline is validated at any particular scale.
 ## v1 scope
 
 Not in this repository (see [`CHANGELOG.md`](CHANGELOG.md) for what's
-tracked for later): Notion/webhook/GitLab sources, any dashboard, cross-run
-aggregation/re-pricing, or a Claude/Codex/launchd-specific scheduler. The
-core CLI is deliberately scheduler-agnostic — it takes flags and runs once —
-so that a future always-on runner can drive it without a rewrite.
+tracked for later): Notion/webhook/GitLab sources, cross-run re-pricing, or
+a Claude/Codex/launchd-specific scheduler. The core CLI is deliberately
+scheduler-agnostic — it takes flags and runs once — so that a future
+always-on runner can drive it without a rewrite. (An M1
+[dashboard](#dashboard) was added in 0.3.0 — see that section; it does not
+change the harvest CLI's own contract or scope.)
 
 Also not in the report tool specifically: re-pricing, JPY/FX conversion,
 seat cost or actual billing, manual budget input, review-result
