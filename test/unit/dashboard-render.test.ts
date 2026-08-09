@@ -121,4 +121,50 @@ describe("renderDashboardHtml", () => {
     assert.match(html, /data-pipeline-heartbeat-at="2026-08-14T00:00:00Z"/);
     assert.match(html, /data-last-valid-event-at="2026-08-06T00:00:00Z"/);
   });
+
+  it("shows the incomplete badge + lower bound, never a bare figure, for a group with a priced-missing-cost record (must-2 regression)", () => {
+    const data = computeDashboardData({
+      snapshots: [
+        {
+          upsertKey: "k-incomplete",
+          repository: "octo/example",
+          payload: makeTokenUsagePayload({ generatedAt: "2026-08-01T00:00:00Z" }),
+          sourceCommentId: 1,
+          sourceUpdatedAt: "2026-08-01T00:00:00Z",
+          markerSha: "sha",
+        },
+      ],
+      attributionAuditSummaries: [],
+      calibrationPoints: [],
+      heartbeats: [],
+      now: NOW,
+    });
+    // Force the fixture group into the incomplete state directly on the domain object -- the
+    // compute-level path to this state is already covered by dashboard-compute.test.ts; this
+    // test is only about what render.ts does with it.
+    const incomplete: DashboardData = {
+      ...data,
+      cost: {
+        meta: data.cost.meta,
+        groups: [
+          {
+            repo: "octo/example",
+            month: "2026-08",
+            recordCount: 2,
+            pricedCount: 2,
+            unpricedCount: 0,
+            unknownCount: 0,
+            pricedMissingCostCount: 1,
+            totalCostUsd: null,
+            knownCostLowerBoundUsd: 2,
+          },
+        ],
+      },
+    };
+    const html = renderDashboardHtml(incomplete);
+    assert.match(html, /badge-incomplete/);
+    assert.match(html, /不完全/);
+    assert.match(html, /\$2\.0000/);
+    assert.doesNotMatch(html, /\$0\.0000/, "must never show $0 for an incomplete group's total");
+  });
 });

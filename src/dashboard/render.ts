@@ -60,6 +60,21 @@ function renderEmptyNotice(): string {
   return `<p class="empty-notice">データなし</p>`;
 }
 
+/** Renders a `CostGroup`'s cost cell: the exact total when the group is complete, an
+ * "incomplete" badge plus the known lower bound when some priced record is missing its cost
+ * figure, or "欠測" when nothing priced was ever recorded at all. Never the partial sum
+ * unlabeled -- see CostGroup's own doc comment for why. */
+function renderCostCell(g: {
+  totalCostUsd: number | null;
+  knownCostLowerBoundUsd: number | null;
+}): string {
+  if (g.totalCostUsd !== null) return fmtUsd(g.totalCostUsd);
+  if (g.knownCostLowerBoundUsd !== null) {
+    return `<span class="badge-incomplete">不完全</span> 少なくとも ${fmtUsd(g.knownCostLowerBoundUsd)}`;
+  }
+  return "欠測";
+}
+
 function renderCostPanel(panel: CostPanel): string {
   const rows =
     panel.groups.length === 0
@@ -77,7 +92,7 @@ function renderCostPanel(panel: CostPanel): string {
           <td>${g.unpricedCount}</td>
           <td>${g.unknownCount}</td>
           <td>${g.pricedMissingCostCount}</td>
-          <td>${fmtUsd(g.totalCostUsd)}</td>
+          <td>${renderCostCell(g)}</td>
         </tr>`,
           )
           .join("\n")}
@@ -87,7 +102,7 @@ function renderCostPanel(panel: CostPanel): string {
   return `<section id="panel-cost">
     <h2>1. Cost</h2>
     ${renderMetaLine(panel.meta)}
-    <p class="panel-note">unpriced/unknown な record は total cost に含めていない (「$0」に潰していない -- priced が 0 件の repo x month は total cost を「欠測」表示)。</p>
+    <p class="panel-note">unpriced/unknown な record は total cost に含めていない (「$0」に潰していない)。priced が 0 件の repo x month は total cost を「欠測」表示、priced の一部で cost が欠測している repo x month は total cost を「不完全」バッジ付きの下限値表示にする -- 部分合計を完全な合計として見せない。</p>
     ${rows}
   </section>`;
 }
@@ -141,6 +156,7 @@ function renderCalibrationPanel(panel: CalibrationPanel): string {
   return `<section id="panel-calibration">
     <h2>2. Forecast calibration</h2>
     ${renderMetaLine(panel.meta)}
+    <p class="panel-note">欠測率は「p50 または p80 のいずれかが欠測」の行比率。p50 欠測=${panel.missingP50Count}行 / p80 欠測=${panel.missingP80Count}行 (それぞれ独立にカウント -- 片方だけ欠測の行もある)。</p>
     <p class="panel-note">区間 (信頼区間等) は計算しない -- sample 不足時は insufficient_data と正直に表示する (M1 DoD)。</p>
     ${summaryLine}
     <h3>Predicted (n=${panel.predictedRows.length})</h3>
@@ -291,6 +307,7 @@ th, td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: l
 th { background: var(--surface); }
 .bar-track { display: inline-block; width: 80px; height: 8px; background: var(--surface); border: 1px solid var(--border); vertical-align: middle; margin-right: 0.4rem; }
 .bar-fill { height: 100%; background: var(--bar); }
+.badge-incomplete { display: inline-block; border: 1px solid var(--warn); color: var(--warn); border-radius: 3px; padding: 0 0.3rem; font-size: 0.75rem; margin-right: 0.3rem; }
 .freshness-banner { border: 1px solid var(--border); border-radius: 4px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
 .freshness-ok { border-color: var(--ok); color: var(--ok); }
 .freshness-yellow { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }

@@ -85,8 +85,67 @@ describe("computeDashboardData: cost panel", () => {
     });
     assert.equal(data.cost.groups.length, 1);
     assert.equal(data.cost.groups[0]?.totalCostUsd, null);
+    assert.equal(
+      data.cost.groups[0]?.knownCostLowerBoundUsd,
+      null,
+      "nothing priced at all -- no lower bound either",
+    );
     assert.equal(data.cost.groups[0]?.unpricedCount, 1);
     assert.equal(data.cost.meta.missingRate, 1);
+  });
+
+  it("never shows a partial priced sum as a complete total -- null total + a lower bound instead (must-2 regression)", () => {
+    const basePayload = makeTokenUsagePayload({ generatedAt: "2026-08-05T00:00:00Z" });
+    const baseRecord = basePayload.data.records[0];
+    assert.ok(baseRecord);
+    const payload = {
+      ...basePayload,
+      data: {
+        ...basePayload.data,
+        records: [
+          {
+            activity: baseRecord.activity,
+            agent: baseRecord.agent,
+            model: baseRecord.model,
+            token_kind: baseRecord.token_kind,
+            tokens: baseRecord.tokens,
+            pricing_status: "priced" as const,
+            estimated_cost_usd: 2,
+          },
+          {
+            // priced, but missing its own cost figure -- the group's true total is unknown,
+            // not "whatever the other record happened to sum to."
+            activity: baseRecord.activity,
+            agent: baseRecord.agent,
+            model: baseRecord.model,
+            token_kind: baseRecord.token_kind,
+            tokens: baseRecord.tokens,
+            pricing_status: "priced" as const,
+          },
+        ],
+      },
+    };
+    const data = computeDashboardData({
+      snapshots: [snapshot({ payload })],
+      attributionAuditSummaries: [],
+      calibrationPoints: [],
+      heartbeats: [],
+      now: NOW,
+    });
+    const group = data.cost.groups[0];
+    assert.ok(group);
+    assert.equal(group.pricedCount, 2);
+    assert.equal(group.pricedMissingCostCount, 1);
+    assert.equal(
+      group.totalCostUsd,
+      null,
+      "an incomplete priced sum must not be shown as the total",
+    );
+    assert.equal(
+      group.knownCostLowerBoundUsd,
+      2,
+      "the known partial sum is still exposed, as a lower bound",
+    );
   });
 
   it("groups by repo x month and sums only priced costs with a defined figure", () => {
@@ -195,6 +254,26 @@ describe("computeDashboardData: calibration panel", () => {
     });
     assert.equal(data.calibration.predictedRows[0]?.ratioToP50, null);
     assert.equal(data.calibration.meta.missingRate, 1);
+  });
+
+  it("counts p50-missing and p80-missing rows independently, and meta.missingRate counts 'either' (should-1 regression)", () => {
+    const data = computeDashboardData({
+      snapshots: [],
+      attributionAuditSummaries: [],
+      calibrationPoints: [
+        point({ predicted_p50: null, predicted_p80: 1500 }), // p50 missing, p80 present
+        point({ predicted_p50: 1000, predicted_p80: null }), // p80 missing, p50 present
+        point({ predicted_p50: 1000, predicted_p80: 1500 }), // both present
+      ],
+      heartbeats: [],
+      now: NOW,
+    });
+    assert.equal(data.calibration.missingP50Count, 1, "only the first row is missing p50");
+    assert.equal(data.calibration.missingP80Count, 1, "only the second row is missing p80");
+    // 2 of 3 rows are missing at least one of the two -- not derivable from either count alone
+    // (1 + 1 would double-count if a row were missing both, and would undercount if it weren't
+    // the same two rows -- this asserts the "either" definition directly).
+    assert.equal(data.calibration.meta.missingRate, 2 / 3);
   });
 });
 

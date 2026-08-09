@@ -24,10 +24,21 @@ export interface CostGroup {
   readonly unpricedCount: number;
   readonly unknownCount: number;
   readonly pricedMissingCostCount: number;
-  /** Sum of `estimated_cost_usd` over this group's priced records that HAVE that field. `null`
-   * when `pricedCount` is 0 -- there is nothing priced to sum, which is a different fact than
-   * "measured cost was $0" (spec: "unpriced を$0にしない"). */
+  /** Sum of `estimated_cost_usd` over this group's priced records, but ONLY when every priced
+   * record in the group actually has that field (`pricedMissingCostCount === 0`) -- `null`
+   * whenever `pricedCount` is 0 (nothing priced to sum) OR `pricedMissingCostCount > 0` (some
+   * priced records ARE missing a cost figure, so the true total is unknown, not "whatever
+   * happened to be summed"). Never render the partial sum here as if it were the total -- that
+   * silently under-represents an incomplete group as a complete, exact one (spec:
+   * "unpriced を$0にしない", extended to "an incomplete priced sum is not the true sum either"). */
   readonly totalCostUsd: number | null;
+  /** The sum of `estimated_cost_usd` over only the priced records that DO have it, regardless
+   * of whether the group is complete -- a safe LOWER bound on the true total (known cost can
+   * only be undercounted, never overcounted, by a missing figure). `null` only when
+   * `pricedCount` is 0. Equal to `totalCostUsd` whenever the group is complete; the one field
+   * to show (with an "incomplete" badge) when `totalCostUsd` is `null` but there is at least
+   * some known cost. */
+  readonly knownCostLowerBoundUsd: number | null;
 }
 
 export interface CostPanel {
@@ -63,6 +74,13 @@ export interface CalibrationPanel {
    * `averageRatioToP50` is reported at all, never the per-row table itself. */
   readonly sampleStatus: "ok" | "insufficient_data";
   readonly averageRatioToP50: number | null;
+  /** Count of `predictedRows` with a `null` `predictedP50`, and separately `predictedP80` --
+   * exposed independently because a row can be missing one without the other (e.g. p50 known,
+   * p80 not). `meta.missingRate` is defined as "either p50 or p80 missing," a strictly-larger-
+   * or-equal count than either of these two alone -- do not assume `meta.missingRate *
+   * meta.n == missingP50Count` or `== missingP80Count`; it is neither. */
+  readonly missingP50Count: number;
+  readonly missingP80Count: number;
 }
 
 export interface AttributionPoint {
