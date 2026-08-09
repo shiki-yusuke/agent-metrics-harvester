@@ -92,13 +92,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate the static dashboard
-        working-directory: repo
+        # Deliberately no `working-directory:` override -- this runs at $GITHUB_WORKSPACE root,
+        # so `repo/`, `metrics-data-checkout/`, and `dashboard-dist/` are all same-level
+        # siblings and every path below is a plain relative path with no ".." segment.
+        # src/cli/path-safety.ts's assertNoPathTraversal rejects ANY ".." segment
+        # unconditionally (by design -- see that file), so a `../`-prefixed path here would
+        # make agent-metrics-dashboard exit 2 on every scheduled/dispatched run, before Pages
+        # ever sees a deploy. test/e2e/dashboard-workflow-args.test.ts pins these exact literal
+        # flag values against the real CLI in this same sibling-directory layout -- keep the two
+        # in sync if this step's paths ever change.
         run: |
-          node dist/src/dashboard/main.js \
+          node repo/dist/src/dashboard/main.js \
             --store jsonl \
-            --store-path ../metrics-data-checkout/agent-metrics-store.jsonl \
-            --aggregates-dir ../metrics-data-checkout/aggregates \
-            --out ../dashboard-dist
+            --store-path metrics-data-checkout/agent-metrics-store.jsonl \
+            --aggregates-dir metrics-data-checkout/aggregates \
+            --out dashboard-dist
 
       - name: Fail if the dashboard did not actually render all 5 panels
         run: |
