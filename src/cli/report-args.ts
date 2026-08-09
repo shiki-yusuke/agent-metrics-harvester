@@ -3,6 +3,7 @@
 // binary in the same package (spec: "別 binary agent-metrics-report を追加"), not a change to
 // the harvest CLI's own argument surface.
 
+import { parseNonNegativeIntFlag } from "./numeric-flag.js";
 import { PathTraversalError, assertNoPathTraversal } from "./path-safety.js";
 
 export class ReportArgError extends Error {}
@@ -47,20 +48,13 @@ function requireValue(argv: readonly string[], i: number, flag: string): string 
   return value;
 }
 
-/** Rejects anything `Number.parseInt` would silently turn into `NaN` (e.g. "abc", "") or a
- * negative number -- none of --max-api-requests/--rate-limit-floor/--max-runtime-seconds/
- * --min-sample-size have a sensible negative or non-numeric value, and a silently-NaN safety
- * valve would fail open (every `previewCheck` comparison against NaN is false) rather than
- * failing closed. */
+/** See numeric-flag.ts: rejects anything `Number.parseInt` would silently turn into `NaN`
+ * (e.g. "abc", "") or a negative/decimal value -- none of --max-api-requests/
+ * --rate-limit-floor/--max-runtime-seconds/--min-sample-size have a sensible negative or
+ * non-numeric value, and a silently-NaN safety valve would fail open (every `previewCheck`
+ * comparison against NaN is false) rather than failing closed. */
 function parseNonNegativeInt(value: string, flag: string): number {
-  if (!/^\d+$/.test(value)) {
-    throw new ReportArgError(`${flag} must be a non-negative integer, got "${value}"`);
-  }
-  const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new ReportArgError(`${flag} must be a non-negative integer, got "${value}"`);
-  }
-  return n;
+  return parseNonNegativeIntFlag(value, flag, ReportArgError);
 }
 
 export function parseReportArgs(argv: readonly string[]): ReportOptions {
