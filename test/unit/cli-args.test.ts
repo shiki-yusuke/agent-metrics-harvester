@@ -107,4 +107,64 @@ describe("parseArgs", () => {
       assert.equal(opts.storePath, "data/my..file.jsonl");
     });
   });
+
+  describe("G5 regression: numeric flags reject NaN and negative values", () => {
+    const base = ["--repo", "octo/example", "--store-path", "x", "--allowed-login", "a"];
+    const numericFlags = [
+      "--lookback-days",
+      "--overlap-seconds",
+      "--max-api-requests",
+      "--rate-limit-floor",
+      "--max-runtime-seconds",
+      "--max-pages-per-fetch",
+    ];
+    const optionKeys: Record<string, string> = {
+      "--lookback-days": "lookbackDays",
+      "--overlap-seconds": "overlapSeconds",
+      "--max-api-requests": "maxApiRequests",
+      "--rate-limit-floor": "rateLimitFloor",
+      "--max-runtime-seconds": "maxRuntimeSeconds",
+      "--max-pages-per-fetch": "maxPagesPerFetch",
+    };
+
+    for (const flag of numericFlags) {
+      it(`${flag} rejects a non-numeric value (was: silently NaN, safety valve fails open)`, () => {
+        assert.throws(() => parseArgs([...base, flag, "abc"]), CliArgError);
+      });
+
+      it(`${flag} rejects a negative value`, () => {
+        assert.throws(() => parseArgs([...base, flag, "-1"]), CliArgError);
+      });
+
+      it(`${flag} rejects an empty value`, () => {
+        assert.throws(() => parseArgs([...base, flag, ""]), CliArgError);
+      });
+
+      it(`${flag} rejects a decimal value`, () => {
+        assert.throws(() => parseArgs([...base, flag, "1.5"]), CliArgError);
+      });
+
+      it(`${flag} accepts zero`, () => {
+        const opts = parseArgs([...base, flag, "0"]);
+        const key = optionKeys[flag] as keyof typeof opts;
+        assert.equal(opts[key], 0);
+      });
+
+      it(`${flag} accepts a positive integer`, () => {
+        const opts = parseArgs([...base, flag, "42"]);
+        const key = optionKeys[flag] as keyof typeof opts;
+        assert.equal(opts[key], 42);
+      });
+    }
+
+    it("a NaN --max-api-requests does not leave the SafetyValve silently disabled (fails at arg-parse time instead)", () => {
+      // Before the fix, `Number.parseInt("abc", 10)` produced NaN, which parseArgs happily
+      // returned as `maxApiRequests`. SafetyValve.previewCheck's own guard
+      // (`this.requestCount + pendingRequests >= this.opts.maxApiRequests`) is `false` for any
+      // NaN operand, so the valve never tripped -- a typo'd flag silently disabled the budget
+      // instead of rejecting the run. Asserting the CliArgError above is the real regression
+      // guard; this test documents *why* that matters end-to-end.
+      assert.throws(() => parseArgs([...base, "--max-api-requests", "abc"]), CliArgError);
+    });
+  });
 });

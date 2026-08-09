@@ -2,6 +2,7 @@
 // dependencies minimal). This CLI has exactly one command (`harvest`) with a fixed, small flag
 // set, which does not need a general-purpose argument-parsing framework.
 
+import { parseNonNegativeIntFlag } from "./numeric-flag.js";
 import { PathTraversalError, assertNoPathTraversal } from "./path-safety.js";
 
 export interface CliOptions {
@@ -37,6 +38,15 @@ function requireValue(argv: readonly string[], i: number, flag: string): string 
   const value = argv[i + 1];
   if (value === undefined) throw new CliArgError(`${flag} requires a value`);
   return value;
+}
+
+/** See numeric-flag.ts: rejects anything `Number.parseInt` would silently turn into `NaN`
+ * (e.g. "abc", "") or a negative/decimal value -- a silently-NaN value reaching SafetyValve
+ * would fail open (every `previewCheck` comparison against NaN is false) rather than failing
+ * closed, and a silently-NaN lookback/overlap/page-count would corrupt the harvest window
+ * math instead of rejecting the run. */
+function parseNonNegativeInt(value: string, flag: string): number {
+  return parseNonNegativeIntFlag(value, flag, CliArgError);
 }
 
 export function parseArgs(argv: readonly string[]): CliOptions {
@@ -80,23 +90,23 @@ export function parseArgs(argv: readonly string[]): CliOptions {
         i++;
         break;
       case "--lookback-days":
-        lookbackDays = Number.parseInt(requireValue(argv, i, flag), 10);
+        lookbackDays = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--overlap-seconds":
-        overlapSeconds = Number.parseInt(requireValue(argv, i, flag), 10);
+        overlapSeconds = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--max-api-requests":
-        maxApiRequests = Number.parseInt(requireValue(argv, i, flag), 10);
+        maxApiRequests = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--rate-limit-floor":
-        rateLimitFloor = Number.parseInt(requireValue(argv, i, flag), 10);
+        rateLimitFloor = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--max-runtime-seconds":
-        maxRuntimeSeconds = Number.parseInt(requireValue(argv, i, flag), 10);
+        maxRuntimeSeconds = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       case "--allowed-login":
@@ -116,7 +126,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
         i++;
         break;
       case "--max-pages-per-fetch":
-        maxPagesPerFetch = Number.parseInt(requireValue(argv, i, flag), 10);
+        maxPagesPerFetch = parseNonNegativeInt(requireValue(argv, i, flag), flag);
         i++;
         break;
       default:
