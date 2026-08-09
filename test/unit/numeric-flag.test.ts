@@ -42,4 +42,47 @@ describe("parseNonNegativeIntFlag", () => {
       assert.match((err as Error).message, /"abc"/);
     }
   });
+
+  describe("boundary values", () => {
+    it("accepts a leading-zero digit string, parsing it as the base-10 value (existing behavior, pinned)", () => {
+      assert.equal(parseNonNegativeIntFlag("007", "--x", TestFlagError), 7);
+    });
+
+    it("rejects a leading '+' sign (not a bare digit string)", () => {
+      assert.throws(() => parseNonNegativeIntFlag("+5", "--x", TestFlagError), TestFlagError);
+    });
+
+    it("rejects exponential notation", () => {
+      assert.throws(() => parseNonNegativeIntFlag("5e2", "--x", TestFlagError), TestFlagError);
+    });
+
+    it('rejects the literal string "Infinity"', () => {
+      assert.throws(() => parseNonNegativeIntFlag("Infinity", "--x", TestFlagError), TestFlagError);
+    });
+
+    it("accepts Number.MAX_SAFE_INTEGER exactly", () => {
+      assert.equal(
+        parseNonNegativeIntFlag("9007199254740991", "--x", TestFlagError),
+        Number.MAX_SAFE_INTEGER,
+      );
+    });
+
+    it("rejects Number.MAX_SAFE_INTEGER + 1 (would round to a safe integer via Number.isFinite alone)", () => {
+      assert.throws(
+        () => parseNonNegativeIntFlag("9007199254740992", "--x", TestFlagError),
+        TestFlagError,
+      );
+    });
+
+    it("rejects a value one past Number.MAX_SAFE_INTEGER that Number.parseInt silently rounds down to MAX_SAFE_INTEGER + 1 (must-fix regression)", () => {
+      // "9007199254740993" is not representable as a double: Number.parseInt silently returns
+      // 9007199254740992 (rounded to the nearest representable value), which passed the old
+      // `Number.isFinite(n) && n >= 0` check even though it does not equal what the user typed.
+      // Number.isSafeInteger is what actually catches this.
+      assert.throws(
+        () => parseNonNegativeIntFlag("9007199254740993", "--x", TestFlagError),
+        TestFlagError,
+      );
+    });
+  });
 });

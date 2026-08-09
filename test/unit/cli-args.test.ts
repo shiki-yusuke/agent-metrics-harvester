@@ -166,5 +166,12 @@ describe("parseArgs", () => {
       // guard; this test documents *why* that matters end-to-end.
       assert.throws(() => parseArgs([...base, "--max-api-requests", "abc"]), CliArgError);
     });
+
+    it("--max-api-requests rejects a value past Number.MAX_SAFE_INTEGER (must-fix regression: Number.parseInt silently rounds it)", () => {
+      assert.throws(
+        () => parseArgs([...base, "--max-api-requests", "9007199254740993"]),
+        CliArgError,
+      );
+    });
   });
 });

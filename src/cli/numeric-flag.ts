@@ -8,11 +8,18 @@
 // value disables the safety valve instead of rejecting the run. Originally added for the
 // report CLI (`agent-metrics-report cost-per-pr`, see report-args.ts) and extracted here so the
 // harvest CLI's own numeric flags (args.ts) get the same fail-closed behavior.
+//
+// `/^\d+$/` alone is not enough either: a digit string past 2^53-1 (Number.MAX_SAFE_INTEGER)
+// still passes `Number.isFinite`, but `Number.parseInt` has already silently rounded it to the
+// nearest representable double (e.g. "9007199254740993" -> 9007199254740992) -- the flag's
+// caller then enforces a budget one off from what the user actually typed. `Number.isSafeInteger`
+// rejects that silent rounding the same way the checks above reject a silent NaN.
 
 /** Parses `value` as a non-negative integer, or throws `new ErrorCtor(message)` if it is not
- * one -- e.g. "abc", "", "-1", "1.5". Each call site supplies its own error type (`CliArgError`
- * for the harvest CLI, `ReportArgError` for the report CLI) so callers keep a single error type
- * per binary; this function only shares the validation logic itself. */
+ * one -- e.g. "abc", "", "-1", "1.5", or a value beyond Number.MAX_SAFE_INTEGER that
+ * `Number.parseInt` would silently round. Each call site supplies its own error type
+ * (`CliArgError` for the harvest CLI, `ReportArgError` for the report CLI) so callers keep a
+ * single error type per binary; this function only shares the validation logic itself. */
 export function parseNonNegativeIntFlag<E extends Error>(
   value: string,
   flag: string,
@@ -22,8 +29,10 @@ export function parseNonNegativeIntFlag<E extends Error>(
     throw new ErrorCtor(`${flag} must be a non-negative integer, got "${value}"`);
   }
   const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new ErrorCtor(`${flag} must be a non-negative integer, got "${value}"`);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new ErrorCtor(
+      `${flag} must be a non-negative integer no greater than ${Number.MAX_SAFE_INTEGER}, got "${value}"`,
+    );
   }
   return n;
 }

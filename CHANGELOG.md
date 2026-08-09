@@ -26,8 +26,16 @@ numbers here track the package's own `version` field, not a release.
     (`parseNonNegativeIntFlag`), extracted out of `report-args.ts` so both
     binaries' argument parsers call one implementation instead of
     maintaining two copies of the same regex/range check. Rejects
-    non-integer strings, `NaN`, negative values, and decimals (e.g. `""`,
-    `"abc"`, `"-1"`, `"1.5"`); accepts `0` and any non-negative integer.
+    non-integer strings, `NaN`, negative values, decimals (e.g. `""`,
+    `"abc"`, `"-1"`, `"1.5"`, `"+5"`, `"5e2"`, `"Infinity"`), and any digit
+    string past `Number.MAX_SAFE_INTEGER` (e.g. `"9007199254740993"`) --
+    `Number.parseInt` silently rounds a value that large to the nearest
+    representable double rather than throwing, so a regex-plus-`isFinite`
+    check alone (the validator's first cut) still let a mistyped huge value
+    through as a different number than the one the user typed; the
+    `Number.isSafeInteger` check catches that. Accepts `0`, any
+    non-negative safe integer, and leading-zero digit strings (e.g. `"007"`
+    parses as `7`, matching `Number.parseInt`'s own behavior).
     Each call site still throws its own error type (`CliArgError` for the
     harvest CLI, `ReportArgError` for the report CLI) via a constructor
     parameter, so `main.ts`'s existing exit-code-2 handling for argument
@@ -37,17 +45,24 @@ numbers here track the package's own `version` field, not a release.
   - Composite Action inputs (`action.yml`'s `lookback-days`,
     `max-api-requests`, `rate-limit-floor`, `max-runtime-seconds`) are
     forwarded to the same `--flag value` CLI arguments by
-    `action/run-harvest.sh`, so a bad Action input now makes the CLI exit 2
-    (confirmed by manual invocation); `run-harvest.sh`'s existing
-    `has-errors` output (set when the CLI's JSON summary line is missing or
-    unparseable) and the workflow's "Fail if the harvester reported
-    per-repository errors" step already turn that into a failed job with no
-    further changes needed. `--overlap-seconds` and `--max-pages-per-fetch`
-    are CLI-only flags with no corresponding Action input.
-  - `test/unit/cli-args.test.ts`, `test/unit/numeric-flag.test.ts` (new):
-    regression coverage for all six harvest-CLI numeric flags (rejects
-    `"abc"` / `"-1"` / `"1.5"` / `""`, accepts `0` and a positive integer)
-    plus direct unit tests of the shared validator.
+    `action/run-harvest.sh`, so a bad Action input now makes the CLI exit 2;
+    `run-harvest.sh`'s existing `has-errors` output (set when the CLI's
+    JSON summary line is missing or unparseable) and the workflow's "Fail
+    if the harvester reported per-repository errors" step already turn
+    that into a failed job with no further changes needed.
+    `test/e2e/action-run-harvest.test.ts` (new) spawns the real
+    `run-harvest.sh` with a bad `MAX_API_REQUESTS` and asserts its
+    `$GITHUB_OUTPUT` carries `cli-exit-code=2`/`has-errors=true` end to
+    end. `--overlap-seconds` and `--max-pages-per-fetch` are CLI-only
+    flags with no corresponding Action input.
+  - `test/unit/cli-args.test.ts`, `test/unit/report-args.test.ts`,
+    `test/unit/numeric-flag.test.ts` (new): regression coverage for all
+    six harvest-CLI numeric flags and the report CLI's four (rejects
+    `"abc"` / `"-1"` / `"1.5"` / `""` / `"+5"` / `"5e2"` / `"Infinity"` /
+    a value past `Number.MAX_SAFE_INTEGER`, accepts `0`, a positive
+    integer, `Number.MAX_SAFE_INTEGER` itself, and leading-zero digit
+    strings), plus direct unit tests of the shared validator and an
+    exact-match check on the report CLI's error-message wording.
 
 ## [0.2.0]
 

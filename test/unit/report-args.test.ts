@@ -143,5 +143,24 @@ describe("parseReportArgs", () => {
         assert.equal(opts[key], 42);
       });
     }
+
+    it("--max-api-requests rejects a value past Number.MAX_SAFE_INTEGER (must-fix regression: Number.parseInt silently rounds it)", () => {
+      assert.throws(
+        () => parseReportArgs([...BASE, "--max-api-requests", "9007199254740993"]),
+        ReportArgError,
+      );
+    });
+
+    it("--max-api-requests error message is stable for users depending on its exact wording", () => {
+      try {
+        parseReportArgs([...BASE, "--max-api-requests", "abc"]);
+        assert.fail("expected parseReportArgs to throw");
+      } catch (err) {
+        assert.equal(
+          (err as Error).message,
+          '--max-api-requests must be a non-negative integer, got "abc"',
+        );
+      }
+    });
   });
 });
