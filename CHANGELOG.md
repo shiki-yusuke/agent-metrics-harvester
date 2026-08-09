@@ -4,6 +4,51 @@ All notable changes to this project are documented in this file. Nothing
 below has been published to a registry or tagged in git yet -- version
 numbers here track the package's own `version` field, not a release.
 
+## [0.2.1]
+
+### Fixed
+
+- **Harvest CLI numeric flags now fail closed on a bad value instead of
+  silently disabling the safety valve (G5).** `src/cli/args.ts`'s
+  `--lookback-days` / `--overlap-seconds` / `--max-api-requests` /
+  `--rate-limit-floor` / `--max-runtime-seconds` / `--max-pages-per-fetch`
+  previously ran straight through `Number.parseInt`, which turns a typo'd
+  value like `"abc"` into `NaN` rather than throwing. A `NaN` `maxApiRequests`
+  reached `SafetyValve` untouched: every comparison against `NaN`
+  (`this.requestCount + pendingRequests >= this.opts.maxApiRequests`) is
+  `false`, so the valve never tripped and the run's request/runtime budget
+  was silently unenforced (fail-open) instead of the CLI rejecting the
+  invocation. The `agent-metrics-report cost-per-pr` binary already guarded
+  its own equivalent flags this way (`parseNonNegativeInt` in
+  `src/cli/report-args.ts`, added in 0.2.0) but the fix was never carried
+  back to the harvest CLI.
+  - `src/cli/numeric-flag.ts` (new): the shared validator
+    (`parseNonNegativeIntFlag`), extracted out of `report-args.ts` so both
+    binaries' argument parsers call one implementation instead of
+    maintaining two copies of the same regex/range check. Rejects
+    non-integer strings, `NaN`, negative values, and decimals (e.g. `""`,
+    `"abc"`, `"-1"`, `"1.5"`); accepts `0` and any non-negative integer.
+    Each call site still throws its own error type (`CliArgError` for the
+    harvest CLI, `ReportArgError` for the report CLI) via a constructor
+    parameter, so `main.ts`'s existing exit-code-2 handling for argument
+    errors is unchanged.
+  - `src/cli/args.ts` / `src/cli/report-args.ts`: all numeric flags in both
+    parsers now route through `parseNonNegativeIntFlag`.
+  - Composite Action inputs (`action.yml`'s `lookback-days`,
+    `max-api-requests`, `rate-limit-floor`, `max-runtime-seconds`) are
+    forwarded to the same `--flag value` CLI arguments by
+    `action/run-harvest.sh`, so a bad Action input now makes the CLI exit 2
+    (confirmed by manual invocation); `run-harvest.sh`'s existing
+    `has-errors` output (set when the CLI's JSON summary line is missing or
+    unparseable) and the workflow's "Fail if the harvester reported
+    per-repository errors" step already turn that into a failed job with no
+    further changes needed. `--overlap-seconds` and `--max-pages-per-fetch`
+    are CLI-only flags with no corresponding Action input.
+  - `test/unit/cli-args.test.ts`, `test/unit/numeric-flag.test.ts` (new):
+    regression coverage for all six harvest-CLI numeric flags (rejects
+    `"abc"` / `"-1"` / `"1.5"` / `""`, accepts `0` and a positive integer)
+    plus direct unit tests of the shared validator.
+
 ## [0.2.0]
 
 ### Added
