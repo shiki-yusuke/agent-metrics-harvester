@@ -10,7 +10,8 @@
   },
   "bin": {
     "agent-metrics-harvester": "./dist/src/cli/main.js",
-    "agent-metrics-report": "./dist/src/cli/report-main.js"
+    "agent-metrics-report": "./dist/src/cli/report-main.js",
+    "agent-metrics-dashboard": "./dist/src/dashboard/main.js"
   },
   "files": [
     "dist/src",

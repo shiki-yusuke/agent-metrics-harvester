@@ -240,6 +240,13 @@ export function projectAggregateRecord(kind: unknown, raw: unknown): ProjectionR
  * not a projection-time one. */
 export function monthBucketOf(record: AggregateRecord): string {
   const iso = record.kind === "heartbeat" ? record.at : record.generated_at;
+  return utcMonthOf(iso);
+}
+
+/** The UTC calendar month (`YYYY-MM`) of an ISO 8601 timestamp string. Shared with
+ * src/dashboard/compute.ts's cost panel (repo x month grouping) so the two never derive "which
+ * month does this timestamp belong to" via two independently-maintained implementations. */
+export function utcMonthOf(iso: string): string {
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) {
     throw new Error(
