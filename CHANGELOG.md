@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. Nothing
 below has been published to a registry or tagged in git yet -- version
 numbers here track the package's own `version` field, not a release.
 
+## [Unreleased]
+
+### Considered, not done
+
+- **Split `HARVESTER_TOKEN` into a read-only cross-repo token and a
+  write-only same-repo token.** `dashboard.yml`'s harvest step currently
+  uses one token scoped to both "read `WATCHED_REPOS`" and "write this
+  repo's `metrics-data` branch" (see README's [Dashboard
+  section](README.md#dashboard)). Two separate, even-more-narrowly-scoped
+  tokens would shrink each one's blast radius further; not done in 0.3.0.
+
 ## [0.3.0]
 
 ### Added

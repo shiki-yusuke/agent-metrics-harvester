@@ -511,10 +511,15 @@ the personal-dimension scan (the same
 enforces on harvested payloads) over every input **before** touching git
 at all — a violation rejects the whole line, no orphan branch is created,
 nothing is pushed. Any field the target `kind` doesn't recognize is
-silently dropped rather than passed through. The dashboard generator
-applies no *additional* sanitization on read — it trusts the write-side
-gate, and `test/unit/dashboard-render.test.ts` machine-scans the rendered
-HTML for the same forbidden keys as a defense-in-depth check.
+silently dropped rather than passed through. The dashboard generator's
+own reader (`src/dashboard/aggregates-reader.ts`) re-applies that exact
+same validator to every line it reads back — not because the write side
+is untrusted, but because it is a second, independent enforcement point:
+a line that somehow fails projection (a torn trailing write, a stale line
+from an older schema version) is silently skipped rather than crashing
+the whole dashboard generation. `test/unit/dashboard-render.test.ts` also
+machine-scans the final rendered HTML for the same forbidden keys, as a
+third, read-time-independent check.
 
 The dashboard never claims a causal effect (spec: "因果を主張しない"). The
 model-cohort panel always carries a fixed non-comparability caveat, the
@@ -538,7 +543,16 @@ are deliberately manual, human decisions:
   one) and read/write access to this repository's `metrics-data` branch —
   see [Authentication and token scope](#authentication-and-token-scope).
   Without it the harvest step can only ever see this repository's own
-  comments.
+  comments. Scope it as narrowly as the token type allows — for a
+  fine-grained PAT (or a GitHub App installation token), that's
+  **Contents: Read** on each of the three `WATCHED_REPOS` repositories,
+  plus **Contents: Read and write** on this repository (for the
+  `metrics-data` branch push). One token currently covers both the
+  cross-repo read and the same-repo write; splitting those into two
+  separate, even-more-narrowly-scoped tokens (a read-only one for
+  harvesting, a write-only one for the state branch) is a reasonable
+  future hardening step, not done here — see the "Unreleased" section of
+  [`CHANGELOG.md`](CHANGELOG.md).
 - **`HEALTHCHECK_URL` secret** (optional, but recommended): a dead-man
   ping URL from a service like healthchecks.io. `dashboard.yml`'s
   `notify` job `curl`s it only after a full success (harvest → dashboard
