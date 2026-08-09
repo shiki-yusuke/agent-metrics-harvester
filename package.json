@@ -1,6 +1,6 @@
 {
   "name": "agent-metrics-harvester",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Reference harvester for the agent-metrics/v1 protocol: collects token/cost telemetry markers hidden in GitHub PR/issue comments into a JSONL or SQLite store, without requiring any developer-held credential. Also ships agent-metrics-report, a read-only cost-per-merged-PR report over the same store.",
   "license": "MIT",
   "type": "module",
@@ -10,7 +10,8 @@
   },
   "bin": {
     "agent-metrics-harvester": "./dist/src/cli/main.js",
-    "agent-metrics-report": "./dist/src/cli/report-main.js"
+    "agent-metrics-report": "./dist/src/cli/report-main.js",
+    "agent-metrics-dashboard": "./dist/src/dashboard/main.js"
   },
   "files": [
     "dist/src",

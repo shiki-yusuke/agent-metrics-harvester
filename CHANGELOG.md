@@ -4,6 +4,72 @@ All notable changes to this project are documented in this file. Nothing
 below has been published to a registry or tagged in git yet -- version
 numbers here track the package's own `version` field, not a release.
 
+## [Unreleased]
+
+### Considered, not done
+
+- **Split `HARVESTER_TOKEN` into a read-only cross-repo token and a
+  write-only same-repo token.** `dashboard.yml`'s harvest step currently
+  uses one token scoped to both "read `WATCHED_REPOS`" and "write this
+  repo's `metrics-data` branch" (see README's [Dashboard
+  section](README.md#dashboard)). Two separate, even-more-narrowly-scoped
+  tokens would shrink each one's blast radius further; not done in 0.3.0.
+
+## [0.3.0]
+
+### Added
+
+- **M1 dashboard: `agent-metrics-dashboard`, `scripts/push-aggregate.mjs`,
+  and `.github/workflows/dashboard.yml`.** A static, zero-dependency HTML
+  dashboard (five panels: cost, forecast calibration, attribution,
+  freshness, model cohort) generated from this repository's own
+  `metrics-data` branch and deployed to GitHub Pages on a daily schedule.
+  See the README's new [Dashboard](README.md#dashboard) section for the
+  data-flow diagram, the sanitized-by-construction policy, the
+  `HEALTHCHECK_URL`/`HARVESTER_TOKEN` secrets, and the one-time manual
+  Pages-enablement step.
+  - `src/aggregates/` (new): the aggregates/v0 line schema (`kind:
+    attribution_audit_summary | calibration_point | heartbeat`) and its
+    validation/projection (`projectAggregateRecord` -- rejects a forbidden
+    personal-dimension key, drops any field the target `kind` doesn't
+    recognize) plus a git-subprocess append helper
+    (`appendAggregateLine`) that creates the target branch as an orphan on
+    first use. Not itself a protocol/v1 contract change -- a v0, internal,
+    not-yet-frozen format.
+  - `scripts/push-aggregate.mjs` (new): a thin, uncompiled CLI wrapper
+    around the above -- validates a local observation (a lane
+    attribution-audit summary or calibration point) and appends it to
+    `aggregates/YYYY-MM.jsonl` on the `metrics-data` branch, or rejects it
+    outright without touching git at all. Coupled to lane only via this
+    file/CLI boundary, never an import.
+  - `src/dashboard/` (new): reads current snapshots via the same
+    `SnapshotReader` `agent-metrics-report` uses (plus a new,
+    dashboard-scoped `AllRepositoriesReader` that discovers every
+    repository in the store, since the dashboard CLI takes no `--repo`
+    flag) and the aggregates directory, computes a pure `DashboardData`
+    domain object, and renders one self-contained HTML file -- CSS bars
+    instead of a chart library, no CDN, light/dark via
+    `prefers-color-scheme`, every table wrapped for horizontal scroll.
+    Every panel carries N, a missing-rate (`null`, never a fabricated
+    zero, when there is nothing to measure), and `quality_status:
+    "not_measured"`. No causal claims: the model-cohort panel always
+    carries a fixed non-comparability caveat, and forecast calibration
+    reports `insufficient_data` rather than computing a confidence
+    interval below the sample floor (M1 DoD). The freshness panel keeps
+    "the pipeline stopped running" (`pipeline_heartbeat_at`) independent
+    of "the pipeline ran but found nothing new" (`last_valid_event_at`),
+    compared against the viewer's own clock by a small inline script at
+    view time -- the generator itself stays byte-identical for fixed
+    inputs and a fixed `--now`.
+  - `.github/workflows/dashboard.yml` (new): daily schedule +
+    `workflow_dispatch`, every third-party action pinned to a commit SHA,
+    reuses the root `action.yml` unmodified for the harvest step. Two
+    guards against a silent empty success: the watched-repo list must be
+    non-empty, and the generated HTML must actually contain all 5 panel
+    sections. A dead-man ping (`HEALTHCHECK_URL`) fires only after a full
+    success; its absence as a configured secret only warns, never fails
+    the run.
+
 ## [0.2.1]
 
 ### Fixed
