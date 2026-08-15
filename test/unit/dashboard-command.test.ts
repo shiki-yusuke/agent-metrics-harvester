@@ -165,4 +165,54 @@ describe("runDashboard", () => {
     });
     assert.equal(result.data.freshness.pipelineHeartbeatAt, "2026-08-10T00:00:00Z");
   });
+
+  it("applies the operator's --empty-reason-config file to the rendered HTML", async () => {
+    const storePath = path.join(dir, "does-not-exist-4.jsonl");
+    const aggregatesDir = path.join(dir, "also-does-not-exist-4");
+    const outDir = path.join(dir, "out-empty-reason");
+    const configPath = path.join(dir, "empty-reasons.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        calibration: { code: "not_produced", note: "adopt が一度も実行されていません" },
+        attribution: { code: "withheld", note: "global 集計に private repo を含むため" },
+        cohort: { code: "insufficient_data" },
+      }),
+      "utf-8",
+    );
+
+    const result = await runDashboard({
+      storeKind: "jsonl",
+      storePath,
+      aggregatesDir,
+      outDir,
+      now: NOW_ISO,
+      emptyReasonConfigPath: configPath,
+    });
+
+    assert.match(result.html, /empty-notice-not_produced/);
+    assert.match(result.html, /empty-notice-withheld/);
+    assert.match(result.html, /empty-notice-insufficient_data/);
+    assert.ok(result.html.includes("adopt が一度も実行されていません"));
+    assert.ok(result.html.includes("global 集計に private repo を含むため"));
+  });
+
+  it("fails loudly when --empty-reason-config points at an invalid file, instead of silently falling back", async () => {
+    const storePath = path.join(dir, "does-not-exist-5.jsonl");
+    const aggregatesDir = path.join(dir, "also-does-not-exist-5");
+    const outDir = path.join(dir, "out-bad-reason-config");
+    const configPath = path.join(dir, "bad-empty-reasons.json");
+    await writeFile(configPath, JSON.stringify({ calibration: { code: "bogus" } }), "utf-8");
+
+    await assert.rejects(() =>
+      runDashboard({
+        storeKind: "jsonl",
+        storePath,
+        aggregatesDir,
+        outDir,
+        now: NOW_ISO,
+        emptyReasonConfigPath: configPath,
+      }),
+    );
+  });
 });

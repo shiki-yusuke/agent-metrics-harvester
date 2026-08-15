@@ -147,3 +147,45 @@ export interface DashboardData {
   readonly freshness: FreshnessPanel;
   readonly cohort: CohortPanel;
 }
+
+/** Why a panel is showing zero rows -- distinct from *whether* it is empty (which
+ * `computeDashboardData` alone determines from real input data; see compute.ts). This
+ * classification is never derived by this codebase: whether calibration truly has "not run yet"
+ * vs. attribution is "measured but withheld at the publication boundary" is an operational
+ * decision only a human operator can make (spec: "何を withheld にするかは運用判断であり、コードが
+ * 決めることではない") -- render.ts only ever renders whichever code+note it is handed via
+ * `DashboardEmptyReasonConfig`, from empty-reason-config.ts's own parsed, operator-authored file.
+ *
+ * - `not_produced`: the process that would generate this kind of data has never run yet (e.g. no
+ *   estimate has ever been `adopt`-ed, so no calibration_point exists to compare against).
+ * - `withheld`: the data DOES exist and IS measured -- it is being deliberately not published
+ *   here, for a publication-boundary reason (e.g. an audit that cannot be scoped to only the
+ *   public repos in this deployment). Never to be read as "not measured."
+ * - `insufficient_data`: data exists but falls below a sample-size floor needed to report it
+ *   meaningfully (the existing `CalibrationPanel.sampleStatus` concept, reused here rather than
+ *   re-invented -- see compute.ts's `CALIBRATION_MIN_SAMPLE_SIZE`).
+ */
+export type EmptyPanelReasonCode = "not_produced" | "withheld" | "insufficient_data";
+
+export interface EmptyPanelReason {
+  readonly code: EmptyPanelReasonCode;
+  /** Optional operator-authored elaboration, rendered verbatim (HTML-escaped) alongside the
+   * code's own fixed, honest sentence. MUST NOT contain a private-side real number, a repo name,
+   * or a session id -- it may only explain *why* the boundary decision was made, never what is
+   * on the other side of it (spec: "withheld の説明は「なぜ出さないか」だけを書き、中身は一切書かない").
+   * The fixed per-code sentence alone (see render.ts's `EMPTY_REASON_SENTENCE`) is already a
+   * complete, non-misleading statement without this field. */
+  readonly note?: string;
+}
+
+/** Optional, entirely operator-supplied (never hardcoded) classification of why each of these
+ * three panels is empty -- keyed by panel, each entry optional. A panel with no entry here (or
+ * when this whole config is omitted) falls back to the original plain "データなし" notice,
+ * unchanged from before this classification existed (see render.ts / dashboard-render.test.ts's
+ * "no config -> legacy display" case). Cost and Freshness are deliberately not configurable here
+ * -- their empty-state display and computation are byte-for-byte unchanged by this feature. */
+export interface DashboardEmptyReasonConfig {
+  readonly calibration?: EmptyPanelReason;
+  readonly attribution?: EmptyPanelReason;
+  readonly cohort?: EmptyPanelReason;
+}

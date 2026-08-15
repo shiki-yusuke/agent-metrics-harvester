@@ -528,6 +528,38 @@ computing a confidence interval below the sample floor, and every panel
 shows a real N and missing-rate — a denominator that doesn't exist renders
 as null, never as a fabricated zero.
 
+### Why an empty panel is empty
+
+Calibration, attribution, and model-cohort can each show zero rows for
+completely different reasons — "this pipeline never ran," "this pipeline
+ran and found something, but the value is deliberately not published
+here," and "not enough data yet" all look identical as a bare "データな
+し" notice, which reads to a visitor as "this pipeline doesn't work." The
+optional `--empty-reason-config <path>` flag (`src/dashboard/args.ts`,
+`empty-reason-config.ts`) points at a JSON file classifying each of those
+three panels' empty state as one of `not_produced` (the generating
+process has never run), `withheld` (measured, but intentionally not
+published at this deployment's publication boundary), or
+`insufficient_data` (below the existing sample-size floor — reuses
+`CalibrationPanel.sampleStatus`'s own concept rather than re-inventing
+it). Each code carries a fixed, honest lead sentence baked into
+`render.ts` (so `withheld` can never be misread as "not measured"); an
+optional `note` per panel adds the operator's own free-text elaboration,
+which **must explain only why the boundary decision was made, never
+what is on the other side of it** — no private-side figures, repo names,
+or session ids belong in `note`. Omitting the flag (or a given panel's
+key) falls back to the original plain "データなし", unchanged.
+
+**This is deliberately a data file, not a code change**: classifying *what*
+counts as `withheld` is an operational, publication-boundary judgment —
+this repository ships
+[`dashboard-empty-reasons.json`](dashboard-empty-reasons.json) at the
+repo root as the current operator-maintained answer for this deployment
+(`.github/workflows/dashboard.yml`'s "Generate the static dashboard" step
+passes `--empty-reason-config repo/dashboard-empty-reasons.json`), and
+updating that classification going forward means editing that JSON file,
+not this code.
+
 ### Required secrets and one-time manual setup
 
 None of the following are configured by this repository's code — they

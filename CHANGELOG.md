@@ -6,6 +6,26 @@ numbers here track the package's own `version` field, not a release.
 
 ## [Unreleased]
 
+### Added
+
+- **Dashboard: distinguish *why* a panel is empty.** Calibration,
+  attribution, and model-cohort previously all rendered the same bare
+  "データなし" whether the underlying data had never been produced, was
+  measured but deliberately withheld at the publication boundary, or
+  just hadn't reached a sample-size floor yet -- indistinguishable to a
+  visitor from "this pipeline doesn't work." The new optional
+  `--empty-reason-config <path>` flag (`src/dashboard/empty-reason-config.ts`)
+  reads an operator-authored JSON file classifying each of those three
+  panels as `not_produced` / `withheld` / `insufficient_data`, each with
+  its own fixed, honest lead sentence in `render.ts` plus an optional
+  free-text `note`. Omitting the flag (or a panel's key) keeps the
+  original plain notice, byte-identical. `dashboard.yml` now passes
+  `--empty-reason-config repo/dashboard-empty-reasons.json`, this
+  repository's own checked-in classification for its deployment (see
+  README's [Dashboard section](README.md#dashboard)). Cost and
+  Freshness are unaffected -- neither panel is configurable through this
+  mechanism, and their own display/computation is unchanged.
+
 ### Considered, not done
 
 - **Split `HARVESTER_TOKEN` into a read-only cross-repo token and a
