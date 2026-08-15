@@ -17,6 +17,14 @@ export interface DashboardOptions {
    * real wall clock at generation time), always passed explicitly by
    * test/unit/dashboard-*.test.ts for byte-identical determinism. */
   readonly now?: string;
+  /** Path to an optional JSON file (empty-reason-config.ts) classifying WHY the calibration/
+   * attribution/cohort panels are empty (not_produced / withheld / insufficient_data), when they
+   * are. Omitted entirely by default -- every panel then renders the original plain "データなし"
+   * notice, unchanged. Deliberately a file path, not an inline flag value: the classification is
+   * a deliberate, versionable, human publication-boundary decision (spec: "何を withheld にする
+   * かは運用判断であり、コードにハードコードしてはいけません"), not something to embed as a CLI
+   * literal in a workflow YAML. */
+  readonly emptyReasonConfigPath?: string;
 }
 
 function assertPathSafe(value: string, flagName: string): void {
@@ -39,6 +47,7 @@ export function parseDashboardArgs(argv: readonly string[]): DashboardOptions {
   let aggregatesDir: string | undefined;
   let outDir: string | undefined;
   let now: string | undefined;
+  let emptyReasonConfigPath: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i] as string;
@@ -68,6 +77,10 @@ export function parseDashboardArgs(argv: readonly string[]): DashboardOptions {
         now = requireValue(argv, i, flag);
         i++;
         break;
+      case "--empty-reason-config":
+        emptyReasonConfigPath = requireValue(argv, i, flag);
+        i++;
+        break;
       default:
         throw new DashboardArgError(`unrecognized argument: ${flag}`);
     }
@@ -86,5 +99,9 @@ export function parseDashboardArgs(argv: readonly string[]): DashboardOptions {
     throw new DashboardArgError(`--now must be a parseable ISO 8601 timestamp, got "${now}"`);
   }
 
-  return { storeKind, storePath, aggregatesDir, outDir, now };
+  if (emptyReasonConfigPath !== undefined) {
+    assertPathSafe(emptyReasonConfigPath, "--empty-reason-config");
+  }
+
+  return { storeKind, storePath, aggregatesDir, outDir, now, emptyReasonConfigPath };
 }

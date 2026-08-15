@@ -1,0 +1,14 @@
+{
+  "attribution": {
+    "code": "withheld",
+    "note": "この監査は現状 repo 単位でスコープを絞れず、private 業務と公開 repo の作業が混在する集計になるため、値の公開を見送っています。"
+  },
+  "calibration": {
+    "code": "not_produced",
+    "note": "予測（estimate）を確定（adopt）した記録がまだ一度もないため、比較対象となる calibration データが生成されていません。"
+  },
+  "cohort": {
+    "code": "not_produced",
+    "note": "calibration データ（上記）から派生する集計のため、同じ理由でまだ生成されていません。"
+  }
+}

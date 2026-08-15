@@ -17,6 +17,7 @@ import {
 import type { AllRepositoriesReader } from "./all-repositories-reader.js";
 import type { DashboardOptions } from "./args.js";
 import { computeDashboardData } from "./compute.js";
+import { readEmptyReasonConfig } from "./empty-reason-config.js";
 import { renderDashboardHtml } from "./render.js";
 import type { DashboardData } from "./types.js";
 
@@ -63,7 +64,17 @@ export async function runDashboard(
     heartbeats,
     now,
   });
-  const html = renderDashboardHtml(data);
+
+  // Reads and validates the operator's own empty-reason classification, if supplied -- never
+  // part of computeDashboardData's inputs (see empty-reason-config.ts's header): this is a
+  // publication-boundary judgment, not a measured quantity, so it flows straight to the
+  // presentation layer only.
+  const emptyReasons =
+    opts.emptyReasonConfigPath !== undefined
+      ? await readEmptyReasonConfig(opts.emptyReasonConfigPath)
+      : undefined;
+
+  const html = renderDashboardHtml(data, emptyReasons);
 
   await mkdir(opts.outDir, { recursive: true });
   const outPath = path.join(opts.outDir, "index.html");

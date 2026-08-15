@@ -108,7 +108,8 @@ jobs:
             --store jsonl \
             --store-path metrics-data-checkout/agent-metrics-store.jsonl \
             --aggregates-dir metrics-data-checkout/aggregates \
-            --out dashboard-dist
+            --out dashboard-dist \
+            --empty-reason-config repo/dashboard-empty-reasons.json
 
       - name: Fail if the dashboard did not actually render all 5 panels
         run: |

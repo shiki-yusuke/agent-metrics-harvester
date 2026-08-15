@@ -14,6 +14,9 @@ import type {
   CohortPanel,
   CostPanel,
   DashboardData,
+  DashboardEmptyReasonConfig,
+  EmptyPanelReason,
+  EmptyPanelReasonCode,
   FreshnessPanel,
   PanelMeta,
 } from "./types.js";
@@ -56,8 +59,28 @@ function renderMetaLine(m: PanelMeta): string {
   return `<p class="panel-meta">N=${m.n} / 欠測率=${fmtPercent(m.missingRate)} / quality=${escapeHtml(m.qualityStatus)}</p>`;
 }
 
-function renderEmptyNotice(): string {
-  return `<p class="empty-notice">データなし</p>`;
+/** Fixed, non-operator-editable sentence per reason code -- this framing is what guarantees
+ * `withheld` can never be misread as "not measured" (spec requirement), so it stays literal here
+ * rather than becoming free text a config file could accidentally weaken. Only the elaboration
+ * alongside it (`EmptyPanelReason.note`) is operator-supplied. */
+const EMPTY_REASON_SENTENCE: Record<EmptyPanelReasonCode, string> = {
+  not_produced:
+    "データなし（未生成: この種類のデータを生成する工程がまだ一度も実行されていません）",
+  withheld:
+    "データなし（非公開: 測定はしていますが、公開範囲の判断により意図的に非公開にしています）",
+  insufficient_data: "データなし（データ不足: 件数が判定に必要な閾値に達していません）",
+};
+
+/** Renders the notice for a genuinely empty panel (n=0 or zero rows). With no `reason` supplied
+ * -- the default, and the only path before this classification existed -- renders the original
+ * plain "データなし", byte-identical to the prior behavior (dashboard-render.test.ts pins this).
+ * With a `reason`, replaces it with the code's fixed, honest sentence plus the operator's own
+ * `note`, never the reverse (a reason is never inferred here from data alone). */
+function renderEmptyNotice(reason?: EmptyPanelReason): string {
+  if (!reason) return `<p class="empty-notice">データなし</p>`;
+  const sentence = EMPTY_REASON_SENTENCE[reason.code];
+  const note = reason.note ? ` ${escapeHtml(reason.note)}` : "";
+  return `<p class="empty-notice empty-notice-${reason.code}">${sentence}${note}</p>`;
 }
 
 /** Renders a `CostGroup`'s cost cell: the exact total when the group is complete, an
@@ -107,7 +130,7 @@ function renderCostPanel(panel: CostPanel): string {
   </section>`;
 }
 
-function renderCalibrationPanel(panel: CalibrationPanel): string {
+function renderCalibrationPanel(panel: CalibrationPanel, reason?: EmptyPanelReason): string {
   const summaryLine =
     panel.sampleStatus === "insufficient_data"
       ? `<p class="panel-note">sample 不足 (predicted N=${panel.predictedRows.length}) -- 区間・平均は insufficient_data として非表示。個々の行は下表参照。</p>`
@@ -115,7 +138,7 @@ function renderCalibrationPanel(panel: CalibrationPanel): string {
 
   const predictedTable =
     panel.predictedRows.length === 0
-      ? renderEmptyNotice()
+      ? renderEmptyNotice(reason)
       : `<div class="table-wrap"><table>
       <thead><tr><th>generated_at</th><th>cohort</th><th>predicted p50</th><th>predicted p80</th><th>actual tokens</th><th>actual cost</th><th>ratio (actual/p50)</th></tr></thead>
       <tbody>
@@ -166,10 +189,10 @@ function renderCalibrationPanel(panel: CalibrationPanel): string {
   </section>`;
 }
 
-function renderAttributionPanel(panel: AttributionPanel): string {
+function renderAttributionPanel(panel: AttributionPanel, reason?: EmptyPanelReason): string {
   const table =
     panel.timeSeries.length === 0
-      ? renderEmptyNotice()
+      ? renderEmptyNotice(reason)
       : `<div class="table-wrap"><table>
       <thead><tr><th>generated_at</th><th>source repo</th><th>exactly attributed</th><th>unbound</th><th>mixed</th><th>orphan</th><th>exact token ratio</th></tr></thead>
       <tbody>
@@ -229,10 +252,10 @@ function renderFreshnessPanel(panel: FreshnessPanel): string {
   </section>`;
 }
 
-function renderCohortPanel(panel: CohortPanel): string {
+function renderCohortPanel(panel: CohortPanel, reason?: EmptyPanelReason): string {
   const table =
     panel.groups.length === 0
-      ? renderEmptyNotice()
+      ? renderEmptyNotice(reason)
       : `<div class="table-wrap"><table>
       <thead><tr><th>cohort_digest</th><th>records</th><th>total actual cost</th></tr></thead>
       <tbody>
@@ -348,7 +371,14 @@ const FRESHNESS_SCRIPT = `
 })();
 `;
 
-export function renderDashboardHtml(data: DashboardData): string {
+/** `emptyReasons` is entirely optional and, when omitted, changes nothing: every panel renders
+ * exactly as it did before this classification existed (dashboard-render.test.ts's "no config"
+ * case pins this). Cost and Freshness never take a reason -- neither ever calls
+ * `renderEmptyNotice`, so their output is untouched by this parameter regardless. */
+export function renderDashboardHtml(
+  data: DashboardData,
+  emptyReasons?: DashboardEmptyReasonConfig,
+): string {
   return `<!doctype html>
 <html lang="ja">
 <head>
@@ -362,10 +392,10 @@ export function renderDashboardHtml(data: DashboardData): string {
 <p class="panel-meta">生成時刻: ${escapeHtml(data.generatedAt)}</p>
 <p class="panel-note">因果を主張しない: このダッシュボードはコスト・件数・速度の記述的な観測のみを示す。品質は測定していない (quality_status: not_measured)。</p>
 ${renderCostPanel(data.cost)}
-${renderCalibrationPanel(data.calibration)}
-${renderAttributionPanel(data.attribution)}
+${renderCalibrationPanel(data.calibration, emptyReasons?.calibration)}
+${renderAttributionPanel(data.attribution, emptyReasons?.attribution)}
 ${renderFreshnessPanel(data.freshness)}
-${renderCohortPanel(data.cohort)}
+${renderCohortPanel(data.cohort, emptyReasons?.cohort)}
 <footer>agent-metrics-harvester dashboard generator</footer>
 <script>${FRESHNESS_SCRIPT}</script>
 </body>

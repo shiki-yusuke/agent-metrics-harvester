@@ -38,6 +38,15 @@ describe("dashboard.yml's exact 'Generate the static dashboard' invocation", () 
       "",
       "utf-8",
     );
+    // `repo/` is the other real sibling in that layout (the checked-out source repository
+    // itself) -- dashboard.yml's `--empty-reason-config` flag points at a file the repo ships,
+    // not one generated at run time, so this fixture only needs to be present and valid.
+    await mkdir(path.join(workspace, "repo"), { recursive: true });
+    await writeFile(
+      path.join(workspace, "repo", "dashboard-empty-reasons.json"),
+      JSON.stringify({ calibration: { code: "not_produced" } }),
+      "utf-8",
+    );
   });
 
   after(async () => {
@@ -56,6 +65,8 @@ describe("dashboard.yml's exact 'Generate the static dashboard' invocation", () 
       "metrics-data-checkout/aggregates",
       "--out",
       "dashboard-dist",
+      "--empty-reason-config",
+      "repo/dashboard-empty-reasons.json",
       "--now",
       "2026-08-15T00:00:00Z",
     ];
@@ -67,5 +78,10 @@ describe("dashboard.yml's exact 'Generate the static dashboard' invocation", () 
 
     const html = await readFile(path.join(workspace, "dashboard-dist", "index.html"), "utf-8");
     assert.match(html, /<!doctype html>/);
+    assert.match(
+      html,
+      /empty-notice-not_produced/,
+      "the workflow's --empty-reason-config flag must actually reach the rendered HTML",
+    );
   });
 });
