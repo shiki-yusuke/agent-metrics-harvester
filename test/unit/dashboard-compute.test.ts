@@ -340,6 +340,21 @@ describe("computeDashboardData: freshness panel", () => {
     assert.equal(data.freshness.pipelineHeartbeatAt, "2026-08-10T00:00:00Z");
   });
 
+  it("counts a harvested snapshot as a valid data event", () => {
+    // Regression: the panel used to read only the aggregate kinds, so a dashboard could render
+    // a populated Cost panel from harvested snapshots while this axis simultaneously claimed
+    // there had never been any valid data -- a false "the data path is dead" signal.
+    const data = computeDashboardData({
+      snapshots: [snapshot({}, { generatedAt: "2026-08-14T23:33:23Z" })],
+      attributionAuditSummaries: [],
+      calibrationPoints: [],
+      heartbeats: [],
+      now: NOW,
+    });
+    assert.equal(data.freshness.lastValidEventAt, "2026-08-14T23:33:23Z");
+    assert.equal(data.freshness.pipelineHeartbeatAt, null);
+  });
+
   it("keeps lastValidEventAt independent of pipelineHeartbeatAt", () => {
     const data = computeDashboardData({
       snapshots: [],
