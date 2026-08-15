@@ -30,6 +30,8 @@ env:
     shiki-yusuke/spec-lane
     shiki-yusuke/agent-metrics-harvester
     shiki-yusuke/ai-agent-skills-playbook
+    shiki-yusuke/agent-cost
+    shiki-yusuke/evidence-docs
 
 jobs:
   build:
