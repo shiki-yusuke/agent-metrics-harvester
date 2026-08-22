@@ -112,7 +112,9 @@ async function assemble() {
 
   // 3. seal: prepare validates the bundle against the contract schema and appends `prepared`.
   const ledgerPath = path.join(outDir, "release-events.jsonl");
-  const prep = JSON.parse(cli(reDir, ["prepare", "--bundle", bundlePath, "--ledger", ledgerPath, "--actor", "ci"]));
+  const prep = JSON.parse(
+    cli(reDir, ["prepare", "--bundle", bundlePath, "--ledger", ledgerPath, "--actor", "ci"]),
+  );
 
   const outputs = {
     release_id: releaseId,
@@ -138,15 +140,23 @@ async function finalize() {
   // is a fact regardless of what the read-back finds. preview_skipped: Pages has no preview
   // tier for this site -- the exact case the contract's preview_skipped models.
   cli(reDir, [
-    "record", "deployed",
-    "--ledger", ledgerPath,
-    "--release-id", outputs.release_id,
-    "--bundle-digest", outputs.bundle_digest,
-    "--environment", "production",
+    "record",
+    "deployed",
+    "--ledger",
+    ledgerPath,
+    "--release-id",
+    outputs.release_id,
+    "--bundle-digest",
+    outputs.bundle_digest,
+    "--environment",
+    "production",
     "--preview-skipped",
-    "--preview-skipped-code", "no_preview_environment_scheduled_rebuild",
-    "--bundle", bundlePath,
-    "--actor", "ci",
+    "--preview-skipped-code",
+    "no_preview_environment_scheduled_rebuild",
+    "--bundle",
+    bundlePath,
+    "--actor",
+    "ci",
   ]);
 
   // Read back from the LIVE site: wrapper shape, content digest == the sealed artifact digest,
@@ -160,7 +170,8 @@ async function finalize() {
     wrapper = await res.json();
     const keys = Object.keys(wrapper).sort().join(",");
     if (keys !== "content,schema_version") problems.push(`unexpected wrapper keys: ${keys}`);
-    if (wrapper.schema_version !== "release-evidence/v0") problems.push(`wrong schema_version: ${wrapper.schema_version}`);
+    if (wrapper.schema_version !== "release-evidence/v0")
+      problems.push(`wrong schema_version: ${wrapper.schema_version}`);
   }
   if (wrapper && problems.length === 0) {
     const { canonicalize, sha256hex } = await import(
@@ -168,7 +179,9 @@ async function finalize() {
     );
     const live = `sha256:${sha256hex(canonicalize(wrapper.content))}`;
     if (live !== bundle.artifacts[0].digest) {
-      problems.push(`live content digest ${live} != sealed artifact digest ${bundle.artifacts[0].digest}`);
+      problems.push(
+        `live content digest ${live} != sealed artifact digest ${bundle.artifacts[0].digest}`,
+      );
     }
     const spot = "index.html";
     const expected = wrapper.content[spot];
@@ -177,31 +190,46 @@ async function finalize() {
     } else {
       const body = Buffer.from(await (await fetch(`${pageUrl}${spot}`)).arrayBuffer());
       const got = sha256(body);
-      if (got !== expected) problems.push(`spot-check ${spot}: live ${got} != manifest ${expected}`);
+      if (got !== expected)
+        problems.push(`spot-check ${spot}: live ${got} != manifest ${expected}`);
     }
   }
 
   if (problems.length === 0) {
     cli(reDir, [
-      "record", "verified",
-      "--ledger", ledgerPath,
-      "--release-id", outputs.release_id,
-      "--bundle-digest", outputs.bundle_digest,
-      "--environment", "production",
-      "--actor", "ci",
+      "record",
+      "verified",
+      "--ledger",
+      ledgerPath,
+      "--release-id",
+      outputs.release_id,
+      "--bundle-digest",
+      outputs.bundle_digest,
+      "--environment",
+      "production",
+      "--actor",
+      "ci",
     ]);
     console.log(`read-back verified: ${outputs.release_id} (${outputs.artifact_digest})`);
     return;
   }
   cli(reDir, [
-    "record", "failed",
-    "--ledger", ledgerPath,
-    "--release-id", outputs.release_id,
-    "--bundle-digest", outputs.bundle_digest,
-    "--environment", "production",
-    "--failure-phase", "verification",
-    "--reason", `read-back failed: ${problems.join("; ")}`,
-    "--actor", "ci",
+    "record",
+    "failed",
+    "--ledger",
+    ledgerPath,
+    "--release-id",
+    outputs.release_id,
+    "--bundle-digest",
+    outputs.bundle_digest,
+    "--environment",
+    "production",
+    "--failure-phase",
+    "verification",
+    "--reason",
+    `read-back failed: ${problems.join("; ")}`,
+    "--actor",
+    "ci",
   ]);
   console.error("read-back FAILED:");
   for (const p of problems) console.error(`  - ${p}`);
@@ -212,6 +240,6 @@ const mode = process.argv[2];
 if (mode === "assemble") await assemble();
 else if (mode === "finalize") await finalize();
 else {
-  console.error('usage: release-evidence-glue.mjs <assemble|finalize> --re <dir> ...');
+  console.error("usage: release-evidence-glue.mjs <assemble|finalize> --re <dir> ...");
   process.exit(2);
 }
