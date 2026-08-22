@@ -119,6 +119,51 @@ jobs:
             exit 1
           fi
 
+      # ---- release-evidence deploy adapter (D5, release-evidence/v0) ----
+      # Measures dashboard-dist, places release-manifest.json INTO it (so the deployed site
+      # carries its own manifest), assembles + seals the evidence bundle, records `prepared`.
+      # The evidence job below finishes the ledger after the real deploy. Both checkouts are
+      # pinned to commit SHAs, same rule as every action pin in this file.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: shiki-yusuke/release-evidence
+          ref: b2b1a0169df9cdc07fb3f2ce033a060313bfebbe
+          path: release-evidence
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: shiki-yusuke/ai-agent-skills-playbook
+          ref: 1b9551254768ce0d4e272855ed29a2802ad37edb
+          path: playbook
+
+      - name: Build the release-evidence CLI
+        working-directory: release-evidence
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Assemble and seal the Release Evidence Bundle (records `prepared`)
+        working-directory: repo
+        env:
+          RELEASE_EVIDENCE_CONTRACTS_DIR: ${{ github.workspace }}/playbook/contracts/release-evidence/v0
+        run: |
+          node scripts/release-evidence-glue.mjs assemble \
+            --re "$GITHUB_WORKSPACE/release-evidence" \
+            --site "$GITHUB_WORKSPACE/dashboard-dist" \
+            --repo "${{ github.repository }}" \
+            --commit "$(git rev-parse HEAD)" \
+            --tree "$(git rev-parse 'HEAD^{tree}')" \
+            --recipe-file .github/workflows/dashboard.yml \
+            --run-id "${{ github.run_id }}-${{ github.run_attempt }}" \
+            --out "$GITHUB_WORKSPACE/evidence-out"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-evidence-out
+          path: evidence-out
+          retention-days: 7
+
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         id: upload
         with:
@@ -133,9 +178,85 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
         id: deployment
+
+  evidence:
+    # Finishes the release-evidence ledger AFTER the real deploy: reads release-manifest.json
+    # back from the LIVE Pages URL, verifies it against the sealed bundle (wrapper shape, JCS
+    # content digest, one content spot-check), records `deployed` (preview_skipped -- Pages has
+    # no preview tier) and `verified` -- or `failed(verification)` and a red job when the live
+    # site does not match what was sealed. The ledger and bundle are then persisted to the
+    # metrics-data branch so the evidence outlives the run.
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the ledger + bundle to metrics-data
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: repo
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: shiki-yusuke/release-evidence
+          ref: b2b1a0169df9cdc07fb3f2ce033a060313bfebbe
+          path: release-evidence
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: shiki-yusuke/ai-agent-skills-playbook
+          ref: 1b9551254768ce0d4e272855ed29a2802ad37edb
+          path: playbook
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Build the release-evidence CLI
+        working-directory: release-evidence
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-evidence-out
+          path: evidence-out
+
+      - name: Read back from the live site and finish the ledger
+        env:
+          RELEASE_EVIDENCE_CONTRACTS_DIR: ${{ github.workspace }}/playbook/contracts/release-evidence/v0
+        run: |
+          node repo/scripts/release-evidence-glue.mjs finalize \
+            --re "$GITHUB_WORKSPACE/release-evidence" \
+            --out evidence-out \
+            --page-url "${{ needs.deploy.outputs.page_url }}"
+
+      - name: Persist the ledger + bundle to metrics-data
+        if: always() # a failed verification is evidence too -- persist it either way
+        working-directory: repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch origin metrics-data
+          git worktree add ../metrics-data-wt metrics-data
+          mkdir -p ../metrics-data-wt/release-evidence/bundles
+          BUNDLE_DIGEST="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("../evidence-out/outputs.json","utf8")).bundle_digest.slice(7,23))')"
+          cp ../evidence-out/bundle.json "../metrics-data-wt/release-evidence/bundles/bundle-${BUNDLE_DIGEST}.json"
+          cp ../evidence-out/toolchain.txt "../metrics-data-wt/release-evidence/bundles/toolchain-${BUNDLE_DIGEST}.txt"
+          cat ../evidence-out/release-events.jsonl >> ../metrics-data-wt/release-evidence/release-events.jsonl
+          cd ../metrics-data-wt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release-evidence
+          git commit -m "release-evidence: ledger + bundle for run ${{ github.run_id }}-${{ github.run_attempt }}"
+          git push origin metrics-data
 
   notify:
     # Runs only when both `build` and `deploy` succeeded (a job's default `if` already requires
