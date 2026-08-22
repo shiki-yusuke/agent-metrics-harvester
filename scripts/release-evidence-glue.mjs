@@ -20,7 +20,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 function arg(name, fallback) {
@@ -50,6 +50,29 @@ function cli(reDir, args) {
   }
 }
 
+// The restore target if THIS release gets rolled back = the last release that reached
+// production AND was verified there (a failed one is not a restore target). Derived from the
+// persisted ledger so every scheduled run chains automatically -- the contract allows null
+// "only for a first-ever release of a target", and without this the second daily run would
+// have recorded a dishonest null into an append-only ledger forever.
+function resolvePrevious(explicit, ledgerPath, selfReleaseId) {
+  if (explicit !== "") return explicit;
+  if (ledgerPath === "" || !existsSync(ledgerPath)) return null; // 本当の初回
+  let last = null;
+  for (const line of readFileSync(ledgerPath, "utf-8").split("\n")) {
+    if (line.trim() === "") continue;
+    const ev = JSON.parse(line);
+    if (
+      ev.kind === "verified" &&
+      ev.environment === "production" &&
+      ev.release_id !== selfReleaseId
+    ) {
+      last = ev.release_id;
+    }
+  }
+  return last;
+}
+
 async function assemble() {
   const reDir = arg("re");
   const site = arg("site");
@@ -60,6 +83,7 @@ async function assemble() {
   const runId = arg("run-id");
   const outDir = arg("out");
   const previous = arg("previous", "");
+  const previousLedger = arg("previous-ledger", "");
   mkdirSync(outDir, { recursive: true });
 
   // 1. measure the built site and place release-manifest.json into it (one CLI command;
@@ -104,7 +128,7 @@ async function assemble() {
       toolchain_ref: "toolchain.txt (recorded alongside the ledger)",
     },
     known_deviations: [],
-    rollback: { previous_release_id: previous === "" ? null : previous },
+    rollback: { previous_release_id: resolvePrevious(previous, previousLedger, releaseId) },
     integrity: { level: "digest_only", signature: null },
   };
   const bundlePath = path.join(outDir, "bundle.json");

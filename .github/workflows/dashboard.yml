@@ -156,6 +156,7 @@ jobs:
             --tree "$(git rev-parse 'HEAD^{tree}')" \
             --recipe-file .github/workflows/dashboard.yml \
             --run-id "${{ github.run_id }}-${{ github.run_attempt }}" \
+            --previous-ledger "$GITHUB_WORKSPACE/metrics-data-checkout/release-evidence/release-events.jsonl" \
             --out "$GITHUB_WORKSPACE/evidence-out"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
