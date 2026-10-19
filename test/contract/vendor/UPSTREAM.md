@@ -6,7 +6,10 @@ harvester conforms to.
 
 - Upstream repository: `ai-agent-skills-playbook`
 - Upstream path: `contracts/agent-metrics/v1/`
-- Upstream commit: `d99e48057a98af80871d00ace90f2ca18ae78eba`
+- Upstream commit: `e60ed28c472df6eea5b6b9be5c37aae83cb6d02b` (the `main` commit whose
+  `contracts/agent-metrics/v1/` tree is exactly the hash below; the previously recorded
+  `d99e480` was a pre-merge commit that is not reachable from upstream `main`, re-identified
+  by tree hash on 2026-10-19 -- the vendored files are unchanged)
 - Upstream tree hash of that path at that commit: `6e228bcbad62ef0e499e3bec54299192d730d1a0`
 - Protocol document: `docs/protocols/agent-metrics-v1.md` at the same commit.
 
