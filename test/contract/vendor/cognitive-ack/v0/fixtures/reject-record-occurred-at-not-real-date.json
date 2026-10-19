@@ -1,0 +1,24 @@
+{
+  "schema_version": "cognitive-ack/v0",
+  "record_id": "sha256:16b467d7bf141f707b3790da56c4f154268d64555b5fbfe0c1f2b697e99b58c7",
+  "authority": "none",
+  "approval_event_id": "sha256:071ec1580883a2ce9107b779a4b8dc4689052d917315c0c21156081f05280e6b",
+  "principal": {
+    "principal_id": "release-captain-04",
+    "issuer": "github-actions-oidc",
+    "role_snapshot": "release-approver"
+  },
+  "occurred_at": "2026-02-30T10:00:00Z",
+  "self_report": "acknowledged",
+  "basis": "self_report",
+  "scopes": [
+    {
+      "kind": "impact-scan:v1",
+      "scope_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "risk_class": "high",
+      "risk_reason": "privilege_boundary",
+      "explanation_id": "EXP-0123456789abcdef",
+      "explanation_present": true
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "approval_source": "accept-composite-happy.json",
+  "approval_events": [
+    {
+      "schema_version": "release-approval/v0",
+      "kind": "approval_granted",
+      "subject": {
+        "receipt_digest": "sha256:a75fa2dba521107c4e8fa9d3217e20e8b0de72c3992abcd0adcdde8739599d56",
+        "receipt_semantic_digest": "sha256:ae784471f7b09fe07151ed05fddc637f6e5921c340c6d97f991826e6b73b0332",
+        "bundle_digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f",
+        "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "target": "production"
+      },
+      "principal": {
+        "principal_id": "release-captain-04",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T21:10:00Z",
+      "expires_at": "2026-08-24T21:10:00Z",
+      "event_id": "sha256:071ec1580883a2ce9107b779a4b8dc4689052d917315c0c21156081f05280e6b"
+    }
+  ],
+  "ack_records": [
+    {
+      "schema_version": "cognitive-ack/v0",
+      "record_id": "sha256:20a7f016c2d37ec017833a64509c8f22a7453617ca4bc6daf54f859aae6d9607",
+      "authority": "none",
+      "approval_event_id": "sha256:071ec1580883a2ce9107b779a4b8dc4689052d917315c0c21156081f05280e6b",
+      "principal": {
+        "principal_id": "release-captain-04",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T21:05:00Z",
+      "self_report": "acknowledged",
+      "basis": "self_report",
+      "scopes": [
+        {
+          "kind": "impact-scan:v1",
+          "scope_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "risk_class": "high",
+          "risk_reason": "none",
+          "explanation_id": "EXP-0123456789abcdef",
+          "explanation_present": true
+        }
+      ]
+    }
+  ],
+  "ingest": {
+    "sha256:20a7f016c2d37ec017833a64509c8f22a7453617ca4bc6daf54f859aae6d9607": {
+      "commit_oid": "1111111111111111111111111111111111111111",
+      "path": "approvals/ledger/ack.json"
+    },
+    "sha256:071ec1580883a2ce9107b779a4b8dc4689052d917315c0c21156081f05280e6b": {
+      "commit_oid": "1111111111111111111111111111111111111111",
+      "path": "approvals/ledger/approval.json"
+    }
+  }
+}

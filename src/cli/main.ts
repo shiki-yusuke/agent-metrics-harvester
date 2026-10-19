@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // CLI entrypoint: `agent-metrics-harvester --repo owner/repo --store jsonl --store-path ...`
+// (or `agent-metrics-harvester cognitive-debt ...`, delegated to src/cognitive-debt/cli.ts).
 // Prints a human-readable log to stderr and exactly one JSON summary line to stdout, so the
 // GitHub Action wrapper (action/) can capture the summary without scraping log text.
 
+import { runCognitiveDebtCli } from "../cognitive-debt/cli.js";
 import { CliArgError, parseArgs } from "./args.js";
 import { runHarvest } from "./harvest-command.js";
 
@@ -51,8 +53,14 @@ async function main(): Promise<void> {
   process.exitCode = errors.size > 0 ? 1 : 0;
 }
 
-main().catch((err) => {
-  console.error("agent-metrics-harvester: fatal error");
-  console.error(err);
-  process.exitCode = 1;
-});
+// `agent-metrics-harvester cognitive-debt ...` is the same command as the
+// `agent-metrics-cognitive-debt` bin; decided before the harvester's own flags are parsed.
+if (process.argv[2] === "cognitive-debt") {
+  void runCognitiveDebtCli(process.argv.slice(3));
+} else {
+  main().catch((err) => {
+    console.error("agent-metrics-harvester: fatal error");
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

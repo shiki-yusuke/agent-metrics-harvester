@@ -1,0 +1,177 @@
+{
+  "type": "object",
+  "required": [
+    "schema_version",
+    "evaluation_cut",
+    "policy",
+    "contract_pin",
+    "subject",
+    "records"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "shadow-evaluation-input/v0"
+    },
+    "evaluation_cut": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "digest",
+        "effective_risk"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "absent_reason": {
+          "type": "object",
+          "required": [
+            "code",
+            "note"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "enum": [
+                "policy_snapshot_absent"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "effective_risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "digest"
+            ],
+            "properties": {
+              "digest": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "absent_reason"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "absent_reason"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "contract_pin": {
+      "type": "object",
+      "required": [
+        "playbook_commit"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "playbook_commit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "bundle_digest",
+        "selection_manifest_digest",
+        "target"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "selection_manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "target": {
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ]
+        },
+        "review_finding_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "rollback_previous_bundle_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "digest",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "release_evidence_bundle",
+              "release_event",
+              "review_finding_record",
+              "verification_record",
+              "selection_manifest",
+              "policy_snapshot",
+              "other"
+            ]
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "observed_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+          },
+          "content": {}
+        }
+      }
+    }
+  }
+}

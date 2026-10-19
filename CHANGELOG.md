@@ -13,6 +13,11 @@ numbers here track the package's own `version` field, not a release.
 
 ### Added
 
+- **`agent-metrics-cognitive-debt` (draft, authority none):** this command writes a
+  `cognitive-debt-metrics/v0` report from recorded data only. It covers M1, M2, ack, coverage,
+  min_cell suppression and the fixed limits. M3 is emitted as `not_computed` until upstream
+  adds `input_digest`. It also runs as `agent-metrics-harvester cognitive-debt ...`. See
+  `docs/cognitive-debt-decisions.md`.
 - **Dashboard: distinguish *why* a panel is empty.** Calibration,
   attribution, and model-cohort previously all rendered the same bare
   "データなし" whether the underlying data had never been produced, was

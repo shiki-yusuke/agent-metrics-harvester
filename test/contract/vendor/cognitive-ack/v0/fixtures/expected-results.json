@@ -1,0 +1,223 @@
+{
+  "protocol_version": "cognitive-ack/v0",
+  "fixture_format_version": "2",
+  "description": "Machine-readable expected outcome for every fixture in this directory; verify-fixtures.mjs fails (non-zero exit) on any mismatch. `expected` is the ACK LEDGER's verdict only -- no fixture declares anything about whether an approval is valid. `type` selects the check: \"record\" (one record: schema + record_id recomputation + real calendar timestamp + R2/R3 + the all-numbers scan R4) and \"composite\" ({approval_source, approval_events, ack_records, ingest}: approval_events must be JCS-identical to the named release-approval/v0 accept composite's -- a mismatch is a broken fixture and exits 1, not a reject -- then rules C1-C8 per ack record). approval_unresolvable cannot be expressed here (it never passes the input boundary) and is covered by verify-fixtures.test.mjs.",
+  "fixtures": [
+    {
+      "type": "record",
+      "expected": "accept",
+      "files": "accept-record-acknowledged-high.json"
+    },
+    {
+      "type": "record",
+      "expected": "reject",
+      "files": "reject-record-id-mismatch.json",
+      "reason_code": "record_id_mismatch"
+    },
+    {
+      "type": "record",
+      "expected": "reject",
+      "files": "reject-record-occurred-at-not-real-date.json",
+      "reason_code": "invalid_calendar_timestamp"
+    },
+    {
+      "type": "record",
+      "expected": "reject",
+      "files": "reject-record-basis-not-self-report.json",
+      "reason_code": "schema_invalid"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-no-ack-approval-granted.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-no-ack-break-glass-approve.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-no-ack-approval-revoked.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-ack-no-explanation.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-ack-granted-related-scopes.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-ack-break-glass.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-held-on-revoke.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-rejected-on-revoke.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-ack-grant-and-held-revoke.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-low-sampled.json"
+    },
+    {
+      "type": "composite",
+      "expected": "accept",
+      "files": "accept-composite-ack-at-approval-time.json"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-forged-principal.json",
+      "reason_code": "principal_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ingest-commit-mismatch.json",
+      "reason_code": "ingest_commit_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ingest-missing-for-record.json",
+      "reason_code": "ingest_missing_for_record"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ingest-missing-for-approval.json",
+      "reason_code": "ingest_missing_for_approval"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ingest-extraneous-entry.json",
+      "reason_code": "ingest_extraneous_entry"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ingest-empty-path.json",
+      "reason_code": "ingest_entry_invalid"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-ack-after-approval.json",
+      "reason_code": "ack_after_approval"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-held-on-granted.json",
+      "reason_code": "self_report_kind_contradiction"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-held-on-break-glass.json",
+      "reason_code": "self_report_kind_contradiction"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-rejected-on-granted.json",
+      "reason_code": "self_report_kind_contradiction"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-rejected-on-break-glass.json",
+      "reason_code": "self_report_kind_contradiction"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-dangling-approval.json",
+      "reason_code": "approval_event_dangling"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-two-acks-one-approval.json",
+      "reason_code": "multiple_acks_for_approval"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-duplicate-record-id.json",
+      "reason_code": "duplicate_record_id"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-duplicate-scope-digest.json",
+      "reason_code": "duplicate_scope_digest"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-risk-class-reason-mismatch.json",
+      "reason_code": "risk_class_reason_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-low-without-sampled.json",
+      "reason_code": "sampled_required_on_low_record"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-high-with-sampled.json",
+      "reason_code": "sampled_forbidden_on_high_record"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-explanation-present-without-id.json",
+      "reason_code": "explanation_presence_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-explanation-id-without-present.json",
+      "reason_code": "explanation_presence_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-numeric-value.json",
+      "reason_code": "numeric_value_forbidden"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-one-bad-among-many.json",
+      "reason_code": "ingest_commit_mismatch"
+    },
+    {
+      "type": "composite",
+      "expected": "reject",
+      "files": "reject-composite-no-ack-bad-ingest.json",
+      "reason_code": "ingest_extraneous_entry"
+    }
+  ]
+}
