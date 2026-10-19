@@ -6,6 +6,11 @@ numbers here track the package's own `version` field, not a release.
 
 ## [Unreleased]
 
+### Changed
+- `test/contract/vendor/UPSTREAM.md`: upstream commit re-pinned from `d99e480` (not reachable
+  from playbook `main`) to `e60ed28`, the `main` commit with the identical
+  `contracts/agent-metrics/v1/` tree (`6e228bc`). No vendored file changed.
+
 ### Added
 
 - **Dashboard: distinguish *why* a panel is empty.** Calibration,
