@@ -1,0 +1,45 @@
+{
+  "approval_source": "accept-composite-grant-then-revoke.json",
+  "approval_events": [
+    {
+      "schema_version": "release-approval/v0",
+      "kind": "approval_granted",
+      "subject": {
+        "receipt_digest": "sha256:0dbd44ddd931ecc59fb4a491379de53e13219b5321e8de4b3665f4e1f04261cc",
+        "receipt_semantic_digest": "sha256:1edb46f9e8b86b23a04e0fc88a0328c8f9c55e7aa19eda59b0377c4d3827206f",
+        "bundle_digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f",
+        "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "target": "staging"
+      },
+      "principal": {
+        "principal_id": "release-captain-02",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T19:10:00Z",
+      "expires_at": "2026-08-24T19:10:00Z",
+      "event_id": "sha256:dfb6301b90359e29252c892f4b1cea9fe32d8e3ecca4cdbf89e5625f40b0f44b"
+    },
+    {
+      "schema_version": "release-approval/v0",
+      "kind": "approval_revoked",
+      "subject": {
+        "receipt_digest": "sha256:0dbd44ddd931ecc59fb4a491379de53e13219b5321e8de4b3665f4e1f04261cc",
+        "receipt_semantic_digest": "sha256:1edb46f9e8b86b23a04e0fc88a0328c8f9c55e7aa19eda59b0377c4d3827206f",
+        "bundle_digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f",
+        "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "target": "staging"
+      },
+      "principal": {
+        "principal_id": "release-captain-02",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T19:30:00Z",
+      "revoked_approval_event_id": "sha256:dfb6301b90359e29252c892f4b1cea9fe32d8e3ecca4cdbf89e5625f40b0f44b",
+      "event_id": "sha256:1bf8b3c0e3f4ab44049bd86ebbd61dedafe71c39a9f7d7218e1f8d8f900b6308"
+    }
+  ],
+  "ack_records": [],
+  "ingest": {}
+}

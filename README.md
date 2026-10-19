@@ -597,6 +597,35 @@ are deliberately manual, human decisions:
   internal to a workflow that never runs could ever detect that on its
   own.
 
+## Cognitive-debt report (draft)
+
+`agent-metrics-cognitive-debt` (also runnable as `agent-metrics-harvester cognitive-debt`,
+same flags, same bytes) writes one
+[`cognitive-debt-metrics/v0`](https://github.com/shiki-yusuke/ai-agent-skills-playbook/blob/d2308e2f8f1d3055509e453675932142409b053c/docs/protocols/cognitive-debt-metrics-v0.md)
+JSON file. The format is a **DRAFT** with `authority: "none"`. It gates nothing and makes no
+LLM call. Every number comes from recorded data only: committed git trees selected by
+`--as-of`, plus hashed input files. The output follows the design document. The fields not
+covered there are listed in
+[`docs/cognitive-debt-decisions.md`](docs/cognitive-debt-decisions.md).
+
+```bash
+agent-metrics-cognitive-debt \
+  --release-ids ids.json --release-ledger ../release-evidence \
+  --ack ack-composite.json --lane-repo ../consumer --lane-evidence ./lane-evidence \
+  --explanations ../evidence-docs --evaluations ../release-evidence \
+  --as-of 2026-10-01T00:00:00Z --out cognitive-debt.json [--detail] \
+  [--ledger-path release-events.jsonl] [--bundles-dir bundles]
+```
+
+The report has M1 (age of unresolved high-risk impact assertions), M2 (impact-scan
+prediction error per release-lane), ack / coverage (F2), the `missing` and `suppressed_rows`
+(min_cell 5) honesty fields, and the six fixed `limits`. M3 (abstain reasons) is always
+`not_computed` (`awaiting_input_digest`) for now. The pinned release-evidence
+shadow-evaluation/v0 schema (`test/contract/vendor/release-evidence/`) does not define
+`input_digest` yet. A pin that does define it makes the command exit 3 until the M3 computed
+path lands. The output bytes are the RFC 8785 serialization themselves, with no trailing
+newline. The same inputs, `--as-of`, version and `--detail` produce identical bytes.
+
 ## End-to-end validation
 
 Beyond this repository's own test suite, the public reference pipeline has
