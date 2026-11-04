@@ -30,3 +30,5 @@
 {"t":"checkpoint","source":"shiki-yusuke/evidence-docs","checkpoint":{"updatedAt":"2026-08-01T00:00:00Z","commentId":0,"etag":"W/\"e56e10692cd2a5f71a5a6ea9372425841af0671766f7b39989a4faac434e5c83\""}}
 {"t":"checkpoint","source":"shiki-yusuke/agent-metrics-harvester","checkpoint":{"updatedAt":"2026-08-01T00:00:00Z","commentId":0,"etag":"W/\"14a5cd409113e624354af77f8e2a26d6f2072416700390e5930378966fdc46af\""}}
 {"t":"checkpoint","source":"shiki-yusuke/ai-agent-skills-playbook","checkpoint":{"updatedAt":"2026-08-01T00:00:00Z","commentId":0,"etag":"W/\"cfcf78d76d59f5a9a0a0ec44208fabd6a86a6d155e6b98b086a65b41ce37a95f\""}}
+{"t":"checkpoint","source":"shiki-yusuke/spec-lane","checkpoint":{"updatedAt":"2026-08-06T20:50:53Z","commentId":5209039976,"etag":"W/\"e84f287f1ac15379e7546f263ca6310973a22d080124577fb90e57a525272e2a\""}}
+{"t":"checkpoint","source":"shiki-yusuke/agent-cost","checkpoint":{"updatedAt":"2026-08-14T23:34:11Z","commentId":5299190909,"etag":"W/\"955b56b3c8ef47f4444b85a83a978b43d7d33115713ee9b3a8c7693b2dd8ac9d\""}}
