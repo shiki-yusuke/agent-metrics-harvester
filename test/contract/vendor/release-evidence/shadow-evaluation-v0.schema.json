@@ -6,6 +6,7 @@
     "evaluation_cut",
     "evaluator",
     "input_manifest",
+    "input_digest",
     "evaluation_status",
     "unknown_reasons",
     "input_errors",
@@ -77,6 +78,10 @@
           "pattern": "^sha256:[0-9a-f]{64}$"
         }
       }
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "evaluation_status": {
       "enum": [

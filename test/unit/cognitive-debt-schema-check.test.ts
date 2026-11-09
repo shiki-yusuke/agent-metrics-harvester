@@ -10,6 +10,7 @@ import {
   assertSupportedSchema,
   checkSchema,
   declaresInputDigest,
+  withoutRequiredInputDigest,
 } from "../../src/cognitive-debt/schema-check.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -58,19 +59,44 @@ describe("cognitive-debt schema-check (vendored release-evidence pin)", () => {
       errors.every((e) => !e.includes("additional property")),
       errors.join("\n"),
     );
-    const extra = checkSchema(schema, { ...record, input_digest: SHA });
-    assert.ok(extra.some((e) => e.includes('additional property "input_digest"')));
+    const extra = checkSchema(schema, { ...record, not_a_wrapper_field: SHA });
+    assert.ok(extra.some((e) => e.includes('additional property "not_a_wrapper_field"')));
     assert.ok(checkSchema(schema, { ...record, mode: "live" }).length > 0);
   });
 
-  it("the pinned shadow-evaluation/v0 schema does not declare input_digest -> M3 not_computed", () => {
+  it("the pinned shadow-evaluation/v0 schema declares input_digest -> M3 computed; without it -> not_computed", () => {
     const schema = load("shadow-evaluation-v0.schema.json");
-    assert.equal(declaresInputDigest(schema), false);
-    assert.equal(m3Mode(schema), "not_computed");
-    const future = {
+    assert.equal(declaresInputDigest(schema), true);
+    assert.equal(m3Mode(schema), "computed");
+    const { input_digest: _dropped, ...properties } = schema.properties;
+    const previous = {
       ...schema,
-      properties: { ...schema.properties, input_digest: { type: "string" } },
+      properties,
+      required: schema.required.filter((k: string) => k !== "input_digest"),
     };
-    assert.equal(m3Mode(future), "computed");
+    assert.equal(m3Mode(previous), "not_computed");
+  });
+
+  it("withoutRequiredInputDigest drops input_digest from required only, on a copy (spec B4, design r10)", () => {
+    const schema = load("shadow-evaluation-v0.schema.json");
+    const before = JSON.stringify(schema);
+    assert.ok(schema.required.includes("input_digest"));
+    const relaxed = withoutRequiredInputDigest(schema) as Record<string, unknown>;
+    assert.equal(JSON.stringify(schema), before, "the vendored schema object is not changed");
+    assert.deepEqual(
+      relaxed.required,
+      schema.required.filter((k: string) => k !== "input_digest"),
+    );
+    assert.deepEqual(relaxed.properties, schema.properties);
+    const record = sampleEvaluation();
+    record.unknown_reasons = [{ code: "unknown_structural", params: {} }];
+    assert.ok(
+      checkSchema(schema, record).some((e) =>
+        e.includes('missing required property "input_digest"'),
+      ),
+    );
+    assert.deepEqual(checkSchema(relaxed, record), []);
+    // A present input_digest is still checked against its pattern.
+    assert.ok(checkSchema(relaxed, { ...record, input_digest: "sha256:XYZ" }).length > 0);
   });
 });

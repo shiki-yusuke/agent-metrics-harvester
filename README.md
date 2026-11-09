@@ -619,11 +619,26 @@ agent-metrics-cognitive-debt \
 
 The report has M1 (age of unresolved high-risk impact assertions), M2 (impact-scan
 prediction error per release-lane), ack / coverage (F2), the `missing` and `suppressed_rows`
-(min_cell 5) honesty fields, and the six fixed `limits`. M3 (abstain reasons) is always
-`not_computed` (`awaiting_input_digest`) for now. The pinned release-evidence
-shadow-evaluation/v0 schema (`test/contract/vendor/release-evidence/`) does not define
-`input_digest` yet. A pin that does define it makes the command exit 3 until the M3 computed
-path lands. The output bytes are the RFC 8785 serialization themselves, with no trailing
+(min_cell 5) honesty fields, and the six fixed `limits`.
+
+M3 (abstain reasons) is `computed` because the pinned release-evidence shadow-evaluation/v0
+schema (`test/contract/vendor/release-evidence/`) defines the wrapper's `input_digest`; with a
+pin that does not define it, M3 stays `not_computed` (`awaiting_input_digest`) and no
+evaluation pair is read. The computed path reads `shadow-evaluations/<name>/input.json` and
+`evaluation.json` from the `--evaluations` commit selected for `--as-of` (never the working
+tree). A dir belongs to the resolved release whose `bundle_digest` equals
+`input.json.subject.bundle_digest`. Dirs that cannot be attributed (no or unparsable
+`input.json`, no string `subject.bundle_digest`, a digest no resolved release has, nested
+dirs, dirs with neither file) are not counted anywhere. Each attributed pair is checked in the
+design's fixed order (shape, `record_digest`, `input_digest` presence and recomputation from the
+`input.json` bytes, same-commit binding in git, cut / contract pin / manifest digest / manifest
+subset / receipt subject, real UTC `evaluation_cut`); the first failure is counted under
+`m3_abstain_reasons.missing.<code>` and only valid pairs are aggregated into
+`evaluation_status`, `by_code_evaluation`, `by_predicate`, `not_applicable`, `abstained`,
+`no_candidate_receipt` and `by_month` (min_cell 5 evaluations per month). Codes outside the
+fixed closed sets are counted as `other:<code>`.
+
+The output bytes are the RFC 8785 serialization themselves, with no trailing
 newline. The same inputs, `--as-of`, version and `--detail` produce identical bytes.
 
 ## End-to-end validation

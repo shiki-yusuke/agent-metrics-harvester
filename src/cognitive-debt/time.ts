@@ -1,5 +1,5 @@
 // The one timestamp reader of cognitive-debt-metrics/v0 (`--as-of`, lane `estimated_at`, ack
-// `occurred_at`, and M3's `evaluation_cut` once phase 2 reads it). Design section 2.3: the string
+// `occurred_at`, and M3's `evaluation_cut`). Design section 2.3: the string
 // must match the regular expression below AND each component must be in range (month 1-12, day
 // within that month, hour < 24, minute and second < 60, any number of fraction digits, trailing
 // `Z`). The built-in date parser is never used: it accepts local-time forms and rolls over out-of-range

@@ -142,14 +142,25 @@ export async function lsTree(
   return entries;
 }
 
-/** `git log --first-parent --format=%H %ct [--reverse] <commit> -- <path>`. */
+/** `git log --first-parent --format=%H %ct [--reverse] <commit> -- <path>`. `literalPathspec`
+ * adds git's `--literal-pathspecs`, so a path holding `*` / `?` / `[` (an evaluation pair dir
+ * name) names exactly that path instead of a glob. */
 export async function logFirstParentForPath(
   repo: string,
   commit: string,
   path: string,
-  options: { readonly reverse?: boolean; readonly diffFilter?: string } = {},
+  options: {
+    readonly reverse?: boolean;
+    readonly diffFilter?: string;
+    readonly literalPathspec?: boolean;
+  } = {},
 ): Promise<CommitDate[]> {
-  const args = ["log", "--first-parent", "--format=%H %ct"];
+  const args = [
+    ...(options.literalPathspec ? ["--literal-pathspecs"] : []),
+    "log",
+    "--first-parent",
+    "--format=%H %ct",
+  ];
   if (options.reverse) args.push("--reverse");
   if (options.diffFilter) args.push(`--diff-filter=${options.diffFilter}`);
   args.push(assertObjectId(commit), "--", path);
