@@ -7,9 +7,9 @@ constants, written out as JSON. They are pinned here so `agent-metrics-cognitive
 `properties` of `shadow-evaluation-v0.schema.json` has `input_digest`, `not_computed` otherwise).
 
 - Upstream repository: `release-evidence`
-- Upstream commit: `63ee7bdf4b577d0806440eb6829a63fd236cede7` (branch `feat/shadow-input-digest`,
-  not merged yet)
-- Upstream merge 後に main の commit へ差替え予定（tree 同一）。
+- Upstream commit: `93cf28387f2f81d3574bb6e99a6614c9c4545f24` (main, merge of release-evidence#8). The schemas and
+  golden pairs were generated at its second parent `63ee7bdf4b577d0806440eb6829a63fd236cede7`; the two commits have
+  the same tree (`git diff --quiet 63ee7bd 93cf283` exits 0), so the outputs are identical.
 - Upstream path: `src/shadow/input.ts`
 - Exports:
   - `SHADOW_EVALUATION_INPUT_SCHEMA_V0` -> `shadow-evaluation-input-v0.schema.json`
