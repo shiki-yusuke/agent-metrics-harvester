@@ -1,5 +1,6 @@
 // Guards: no personal-dimension key anywhere in the output, no authority other than "none" in
-// src/cognitive-debt, and the M3 computed path stops with exit 3 instead of degrading silently.
+// src/cognitive-debt, and the M3 mode follows the vendored schema (input_digest declared ->
+// computed; not declared -> not_computed without reading any evaluation pair).
 
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -8,13 +9,17 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PERSONAL_DIMENSION_KEYS as SRC_PERSONAL_DIMENSION_KEYS } from "../../src/cognitive-debt/inputs.js";
+import { jcsDigest } from "../../src/cognitive-debt/jcs.js";
 import { DEFAULT_VENDOR_DIR } from "../../src/cognitive-debt/run.js";
+import { bundle } from "../support/cognitive-debt-fixtures.js";
 import {
   baseSpec,
   buildScenario,
   runScenario,
   runSpec,
 } from "../support/cognitive-debt-fixtures.js";
+
+const R1_DIGEST = jcsDigest(bundle("R1", "L-1"));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // dist/test/unit -> <repo>/src/cognitive-debt (the TypeScript sources, not the build output).
@@ -75,30 +80,51 @@ describe("cognitive-debt guards", () => {
     assert.deepEqual([...new Set(values)], ['"none"']);
   });
 
-  it("a vendored schema that declares input_digest stops the run with exit 3 and writes nothing", async () => {
+  it("a vendored schema without input_digest (the previous pin) keeps M3 not_computed and reads no evaluation pair", async () => {
     const vendorDir = mkdtempSync(path.join(tmpdir(), "cd-vendor-"));
     cpSync(DEFAULT_VENDOR_DIR, vendorDir, { recursive: true });
     const file = path.join(vendorDir, "shadow-evaluation-v0.schema.json");
     const schema = JSON.parse(readFileSync(file, "utf-8"));
-    schema.properties.input_digest = { type: "string", pattern: "^sha256:[0-9a-f]{64}$" };
+    Reflect.deleteProperty(schema.properties, "input_digest");
+    schema.required = schema.required.filter((k: string) => k !== "input_digest");
     writeFileSync(file, JSON.stringify(schema));
-    const s = buildScenario(baseSpec());
+    const spec = baseSpec();
+    // A pair attributed to R1 that is invalid in every way: read, it would count under some
+    // missing.* code; not_computed must leave every M3 field null instead.
+    spec.evaluations = [
+      {
+        date: "2026-01-05T00:00:00Z",
+        files: {
+          "shadow-evaluations/p1/input.json": { subject: { bundle_digest: R1_DIGEST } },
+          "shadow-evaluations/p1/evaluation.json": "{not json",
+        },
+      },
+    ];
+    const s = buildScenario(spec);
     try {
       const r = await runScenario(s, [], "out.json", { vendorDir });
-      assert.equal(r.code, 3);
-      assert.deepEqual(r.stderr, ["cognitive-debt: m3 computed path not implemented (phase 2)"]);
-      assert.equal(r.bytes, null);
+      assert.equal(r.code, 0);
+      const m3 = r.report.m3_abstain_reasons;
+      assert.equal(m3.status, "not_computed");
+      assert.equal(m3.reason, "awaiting_input_digest");
+      for (const [k, v] of Object.entries(m3)) {
+        if (k !== "status" && k !== "reason") assert.equal(v, null, k);
+      }
+      assert.ok(!Object.keys(r.report.suppressed_rows).some((k) => k.startsWith("m3.")));
+      assert.ok(r.stderr.some((l) => l.includes("m3=not_computed")));
     } finally {
       s.cleanup();
     }
   });
 
-  it("the shipped vendored pin keeps M3 not_computed", async () => {
+  it("the shipped vendored pin (input_digest declared) computes M3 instead of stopping", async () => {
     const s = buildScenario(baseSpec());
     try {
       const r = await runScenario(s);
       assert.equal(r.code, 0);
-      assert.equal(r.report.m3_abstain_reasons.status, "not_computed");
+      assert.equal(r.report.m3_abstain_reasons.status, "computed");
+      assert.equal(r.report.m3_abstain_reasons.reason, null);
+      assert.ok(r.stderr.some((l) => l.includes("m3=computed")));
     } finally {
       s.cleanup();
     }

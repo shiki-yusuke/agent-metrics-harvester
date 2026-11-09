@@ -164,3 +164,14 @@ export function declaresInputDigest(schema: unknown): boolean {
     Object.hasOwn(properties, "input_digest")
   );
 }
+
+/** Design section 1 (r10): the harvester applies the vendored shadow-evaluation/v0 schema with
+ * `input_digest` removed from the top-level `required`, so a wrapper without the field is not a
+ * shape failure but reaches `evaluation_input_digest_absent`. Returns a copy; the vendored file
+ * (and the object read from it) is never changed. `properties.input_digest` stays, so a present
+ * value must still match its pattern. */
+export function withoutRequiredInputDigest(schema: object): object {
+  const s = schema as Schema;
+  if (!Array.isArray(s.required)) return { ...s };
+  return { ...s, required: (s.required as unknown[]).filter((k) => k !== "input_digest") };
+}

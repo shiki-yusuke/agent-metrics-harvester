@@ -157,14 +157,26 @@ describe("agent-metrics-cognitive-debt (bin, e2e)", () => {
     assert.equal(m2.detail, null);
   });
 
-  it("M3 is not_computed with every other field null", () => {
+  it("M3 is computed over an evaluations repo with no pair: population 0, both resolved releases no_evaluation", () => {
     const m3 = report.m3_abstain_reasons;
-    assert.equal(m3.status, "not_computed");
-    assert.equal(m3.reason, "awaiting_input_digest");
+    assert.equal(m3.status, "computed");
+    assert.equal(m3.reason, null);
     assert.equal(Object.keys(m3).length, 11);
-    for (const [k, v] of Object.entries(m3)) {
-      if (k !== "status" && k !== "reason") assert.equal(v, null, k);
+    assert.deepEqual(m3.population, {
+      resolved_releases: 2,
+      evaluated_releases: 0,
+      evaluations: 0,
+    });
+    assert.deepEqual(m3.missing.no_evaluation, { count: 2, unit: "release" });
+    for (const [k, v] of Object.entries(m3.missing)) {
+      if (k !== "no_evaluation") assert.deepEqual(v, { count: 0, unit: "evaluation_pair" }, k);
     }
+    assert.deepEqual(m3.evaluation_status, { evaluated: 0, invalid_input: 0, unknown: 0 });
+    assert.deepEqual(m3.by_predicate, {});
+    assert.deepEqual(m3.not_applicable, {});
+    assert.equal(m3.abstained, 0);
+    assert.equal(m3.no_candidate_receipt, 0);
+    assert.deepEqual(m3.by_month, {});
   });
 
   it("ack and coverage join through the approval event", () => {

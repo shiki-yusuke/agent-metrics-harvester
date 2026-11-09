@@ -1,7 +1,8 @@
 // Orchestration for `agent-metrics-cognitive-debt`: select one commit per git input, hash the
-// non-git inputs, walk the release chain, compute M1 / M2 / ack / coverage, emit M3 as
-// not_computed, apply min_cell, and write the JCS bytes. Exit codes: 0 written, 1 input/runtime
-// failure, 2 usage error, 3 M3 computed path required but not implemented (phase 2).
+// non-git inputs, walk the release chain, compute M1 / M2 / ack / coverage, compute M3 (or emit
+// it as not_computed while the vendored shadow-evaluation/v0 schema has no `input_digest`), apply
+// min_cell, and write the JCS bytes. Exit codes: 0 written, 1 input/runtime failure, 2 usage
+// error.
 
 import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -23,9 +24,9 @@ import {
 import { NonWellFormedStringError, serializeOutput } from "./jcs.js";
 import { computeM1 } from "./m1.js";
 import { buildM2Units, computeM2 } from "./m2.js";
-import { M3_NOT_COMPUTED, m3Mode } from "./m3.js";
+import { type M3Schemas, M3_NOT_COMPUTED, computeM3, m3Mode } from "./m3.js";
 import { buildReport } from "./report.js";
-import { assertSupportedSchema } from "./schema-check.js";
+import { assertSupportedSchema, withoutRequiredInputDigest } from "./schema-check.js";
 import { missingEntry } from "./stats.js";
 import { applyMinCell, emptySuppressed } from "./suppress.js";
 
@@ -82,7 +83,7 @@ function packageVersion(): string {
   return String(pkg.version);
 }
 
-function loadVendoredSchema(vendorDir: string, file: string): unknown {
+function loadVendoredSchema(vendorDir: string, file: string): object {
   const schema = JSON.parse(readFileSync(path.join(vendorDir, file), "utf-8"));
   assertSupportedSchema(schema);
   return schema;
@@ -111,12 +112,13 @@ export async function runCognitiveDebt(
 
   try {
     const vendorDir = overrides.vendorDir ?? DEFAULT_VENDOR_DIR;
-    loadVendoredSchema(vendorDir, "shadow-evaluation-input-v0.schema.json");
+    const inputSchema = loadVendoredSchema(vendorDir, "shadow-evaluation-input-v0.schema.json");
     const evaluationSchema = loadVendoredSchema(vendorDir, "shadow-evaluation-v0.schema.json");
-    if (m3Mode(evaluationSchema) === "computed") {
-      io.stderr("cognitive-debt: m3 computed path not implemented (phase 2)");
-      return 3;
-    }
+    const mode = m3Mode(evaluationSchema);
+    const m3Schemas: M3Schemas = {
+      input: inputSchema,
+      evaluation: withoutRequiredInputDigest(evaluationSchema),
+    };
 
     const approvalKinds = loadApprovalKinds(DEFAULT_RELEASE_APPROVAL_DIR);
     const asOfAt = opts.asOfAt;
@@ -159,6 +161,22 @@ export async function runCognitiveDebt(
       ...m2.output,
       by_risk_class: applyMinCell("m2", "by_risk_class", "release_lane", m2.rows, suppressed),
     };
+    // not_computed reads no evaluation pair at all (design 2.3, r10).
+    const m3Out =
+      mode === "computed"
+        ? await (async () => {
+            const m3 = await computeM3({
+              repo: opts.evaluations,
+              commit: evaluationsCommit?.sha ?? null,
+              resolved: chain.resolved,
+              schemas: m3Schemas,
+            });
+            return {
+              ...m3.output,
+              by_month: applyMinCell("m3", "by_month", "evaluation", m3.months, suppressed),
+            };
+          })()
+        : { ...M3_NOT_COMPUTED };
     const ackOut = {
       ...ack.ack,
       by_release: applyMinCell("ack", "by_release", "approval", ack.rows, suppressed),
@@ -208,7 +226,7 @@ export async function runCognitiveDebt(
       },
       m1: m1Out,
       m2: m2Out,
-      m3: { ...M3_NOT_COMPUTED },
+      m3: m3Out,
       ack: ackOut,
       coverage: ack.coverage,
       missing,
@@ -217,7 +235,7 @@ export async function runCognitiveDebt(
     await writeFile(opts.out, serializeOutput(report));
     io.stderr(
       `agent-metrics-cognitive-debt: wrote ${opts.out} (releases=${releaseIds.length} ` +
-        `resolved=${chain.resolved.length} m3=not_computed)`,
+        `resolved=${chain.resolved.length} m3=${mode})`,
     );
     return 0;
   } catch (err) {
